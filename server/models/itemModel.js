@@ -8,6 +8,15 @@ const itemSchema = new mongoose.Schema(
     imgUrl: String,
     price: Number,
     gst: Number,
+
+    isAvailable: {
+      type: Boolean,
+      default: true,
+    },
+    quantity: {
+      type: Number,
+      default: 0,
+    },
   },
   { timestamps: true }
 );

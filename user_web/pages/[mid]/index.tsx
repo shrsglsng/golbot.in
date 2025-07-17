@@ -2,28 +2,20 @@ import Head from "next/head"
 import { useEffect, useState } from "react"
 import Image from "next/image"
 import { useRouter } from "next/router"
-import { useSelector } from "react-redux"
+import { useSelector, useDispatch } from "react-redux"
 import { selectCart, setItems, updateCart } from "../../redux/cartSlice"
-import { useDispatch } from "react-redux"
 import { ItemModel } from "../../models/itemModel"
 import { GetServerSideProps } from "next/types"
 import Navbar from "../../shared/navbar"
-import Carousel from "../../shared/carousel"
 
 function PuriCard({ item, index }: { item: ItemModel; index: number }) {
   const dispatch = useDispatch()
 
   function handleBtnClick(action: "+" | "-") {
     if (action === "+" && item.quantity < 10) {
-      // setCurrCount((count) => count + 1);
-      dispatch(
-        updateCart({ item: { ...item, quantity: item.quantity + 1 }, index })
-      )
+      dispatch(updateCart({ item: { ...item, quantity: item.quantity + 1 }, index }))
     } else if (action === "-" && item.quantity > 0) {
-      // setCurrCount((count) => count - 1);
-      dispatch(
-        updateCart({ item: { ...item, quantity: item.quantity - 1 }, index })
-      )
+      dispatch(updateCart({ item: { ...item, quantity: item.quantity - 1 }, index }))
     }
   }
 
@@ -31,55 +23,54 @@ function PuriCard({ item, index }: { item: ItemModel; index: number }) {
     <div className="h-36 w-full p-5 flex" key={index}>
       {/* description */}
       <div className="flex-grow-[0.7] basis-0 flex flex-col">
-        <Image src="/vegIcon.svg" height={20} width={20} alt="" />
+        <Image src="/vegIcon.svg" height={20} width={20} alt="Veg Icon" />
         <div className="h-1" />
-        {/* name */}
         <div>{item.name}</div>
-        {/* price */}
         <div className="h-2" />
         <div>₹{item.price}</div>
-        {/* <div className="h-3" /> */}
         <div className="text-xs text-gray-500">{item.desc}</div>
       </div>
-      {/* image with add btn */}
+
+      {/* image and add/counter UI */}
       <div className="flex-grow-[0.3] basis-0 flex flex-col justify-center">
         <div className="relative h-full w-full">
-          <Image src={item.imgUrl} alt="" fill={true} className="rounded-md" />
-        </div>
-        <div className="w-full relative h-4 flex justify-center">
-          {/* adder */}
-          {item.isAvailable ? (
-            <button
-              onClick={() => handleBtnClick("+")}
-              className={
-                "w-4/5 -mt-5 bg-blue-50 border border-cblue rounded-md place-items-center " +
-                (item.quantity !== 0 ? "hidden" : "grid")
-              }>
-              <div className="w-full px-3 py-1 text-cblue text-center font-bold">
-                Add
-              </div>
-            </button>
+          {item.imgUrl ? (
+            <Image
+              src={item.imgUrl}
+              alt={item.name}
+              fill
+              className="rounded-md object-cover"
+            />
           ) : (
-            <div className="w-4/5 -mt-5 bg-zinc-200 border border-cblue rounded-md grid place-items-center text-xs text-zinc-500">
-              <span className="">Sold Out</span>
+            <div className="h-full w-full bg-gray-200 flex items-center justify-center rounded-md text-sm text-gray-500">
+              No Image
             </div>
           )}
+        </div>
 
-          {/* counter */}
-          <div
-            className={
-              "w-4/5 -mt-5 bg-cblue rounded-md place-items-center " +
-              (item.quantity === 0 ? "hidden" : "grid")
-            }>
-            <div className="w-full px-3 py-1 flex justify-between items-center text-white">
-              {/* add */}
-              <button onClick={() => handleBtnClick("-")}>−</button>
-              {/* display */}
-              <div>{item.quantity}</div>
-              {/* sub */}
-              <button onClick={() => handleBtnClick("+")}>+</button>
+        <div className="w-full relative h-4 flex justify-center">
+          {item.isAvailable ? (
+            item.quantity === 0 ? (
+              <button
+                onClick={() => handleBtnClick("+")}
+                className="w-4/5 -mt-5 bg-blue-50 border border-cblue rounded-md place-items-center grid"
+              >
+                <div className="w-full px-3 py-1 text-cblue text-center font-bold">Add</div>
+              </button>
+            ) : (
+              <div className="w-4/5 -mt-5 bg-cblue rounded-md place-items-center grid">
+                <div className="w-full px-3 py-1 flex justify-between items-center text-white">
+                  <button onClick={() => handleBtnClick("-")}>−</button>
+                  <div>{item.quantity}</div>
+                  <button onClick={() => handleBtnClick("+")}>+</button>
+                </div>
+              </div>
+            )
+          ) : (
+            <div className="w-4/5 -mt-5 bg-zinc-200 border border-cblue rounded-md grid place-items-center text-xs text-zinc-500">
+              <span>Sold Out</span>
             </div>
-          </div>
+          )}
         </div>
       </div>
     </div>
@@ -91,21 +82,22 @@ export default function Home({ allItems }: { allItems: ItemModel[] }) {
   const dispatch = useDispatch()
   const items = useSelector(selectCart)
   const { mid } = router.query
-
   const [total, setTotal] = useState(0)
 
   useEffect(() => {
     dispatch(setItems({ allItems }))
-  }, [])
+  }, [dispatch, allItems])
 
   useEffect(() => {
-    var tmp = 0
+    let tmp = 0
     items.forEach((ele: ItemModel) => {
-      tmp += ele.price * ele.quantity
+      if (!isNaN(ele.price) && !isNaN(ele.quantity)) {
+        tmp += ele.price * ele.quantity
+      }
     })
-
     setTotal(tmp)
   }, [items])
+
   return (
     <>
       <Head>
@@ -125,39 +117,42 @@ export default function Home({ allItems }: { allItems: ItemModel[] }) {
             <div className="h-20" />
 
             <div className="h-64 py-5">
-              {/* <Carousel /> */}
               <div className="relative h-full w-full">
-                <Image src={"/packed-food.webp"} alt="" fill={true} />
+                <Image src={"/packed-food.webp"} alt="Header Banner" fill />
               </div>
             </div>
 
-            {items.map((item: ItemModel, i: number) => (
-              <div key={i}>
-                <PuriCard item={item} index={i} />
-                {i !== items.length - 1 && (
-                  <div className="h-2 bg-white grid place-items-center px-5">
-                    {" "}
-                    <div className="h-[0.5px] w-full bg-black"></div>{" "}
-                  </div>
-                )}
-              </div>
-            ))}
+            {Array.isArray(items) && items.length > 0 ? (
+              items.map((item: ItemModel, i: number) => (
+                <div key={i}>
+                  <PuriCard item={item} index={i} />
+                  {i !== items.length - 1 && (
+                    <div className="h-2 bg-white grid place-items-center px-5">
+                      <div className="h-[0.5px] w-full bg-black" />
+                    </div>
+                  )}
+                </div>
+              ))
+            ) : (
+              <div className="text-center text-gray-500 py-10">Loading menu...</div>
+            )}
+
             <div className="flex-grow bg-gray-200" />
           </div>
-          <div className="h-20"></div>
+          <div className="h-20" />
         </div>
 
         <div className="fixed bottom-0 w-full md:w-1/2 lg:w-1/4 p-3 bg-white">
-          {" "}
           <button
-            onClick={() => {
-              router.push(`/${mid}/checkout`)
-            }}
-            disabled={total <= 0 ? true : false}
+            onClick={() => router.push(`/${mid}/checkout`)}
+            disabled={total <= 0}
             className={`w-full p-3 rounded-md ${
               total <= 0 ? "bg-cbluel" : "bg-cblue hover:bg-cbluel"
-            }`}>
-            <div className="text-lg text-white">Add to Order - ₹{total}</div>
+            }`}
+          >
+            <div className="text-lg text-white">
+              Add to Order - ₹{Intl.NumberFormat("en-IN").format(total)}
+            </div>
           </button>
         </div>
       </div>
@@ -168,20 +163,18 @@ export default function Home({ allItems }: { allItems: ItemModel[] }) {
 export const getServerSideProps: GetServerSideProps = async (context) => {
   const { mid } = context.query
 
-  if (!process.env.NEXT_PUBLIC_SERVER_URL) throw "Server Url Not Set"
-  const url = process.env.NEXT_PUBLIC_SERVER_URL + `/machine/getMachine/${mid}`
+  if (!process.env.NEXT_PUBLIC_SERVER_URL) throw new Error("Server Url Not Set")
 
-  const machine = await fetch(url)
+  const machineRes = await fetch(
+    `${process.env.NEXT_PUBLIC_SERVER_URL}/machine/getMachine/${mid}`
+  )
 
-  if (machine.status === 404) {
-    return {
-      notFound: true, //redirects to 404 page
-    }
+  if (machineRes.status === 404) {
+    return { notFound: true }
   }
 
-  const getItemsUrl = process.env.NEXT_PUBLIC_SERVER_URL + `/getAllItems`
-  const items = await fetch(getItemsUrl)
-  const allItems = (await items.json())["items"]
+  const itemsRes = await fetch(`${process.env.NEXT_PUBLIC_SERVER_URL}/getAllItems`)
+  const allItems = (await itemsRes.json())["items"]
 
   return {
     props: { allItems: [...allItems] },

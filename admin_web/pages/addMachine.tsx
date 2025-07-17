@@ -1,7 +1,48 @@
 import Sidebar from "@/shared/sidebar";
 import Head from "next/head";
+import { useState } from "react";
 
 function AddMachine() {
+  const [mid, setMid] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [location, setLocation] = useState("");
+  const [ipAddress, setIpAddress] = useState("");
+
+  const handleAddMachine = async () => {
+    if (!mid || !password || !confirmPassword || !location || !ipAddress) {
+      alert("Please fill all fields");
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      alert("Passwords do not match");
+      return;
+    }
+
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/machine/create`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("Token")}`, // If token is needed
+        },
+        body: JSON.stringify({ mid, password, location, ipAddress }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Failed to create machine");
+
+      alert("Machine created successfully!");
+    } catch (err) {
+  if (err instanceof Error) {
+    alert(err.message);
+  } else {
+    alert("Something went wrong");
+  }
+}
+  };
+
   return (
     <>
       <Head>
@@ -11,7 +52,7 @@ function AddMachine() {
         <link rel="icon" href="/favicon.ico" />
       </Head>
       <main className="w-screen h-screen flex">
-        {/* sideBar */}
+        {/* Sidebar */}
         <div className="w-72 h-screen fixed">
           <Sidebar />
         </div>
@@ -20,30 +61,51 @@ function AddMachine() {
         <div className="w-[80%] h-full p-10 grid place-items-center">
           <div className="w-96 flex flex-col p-5 border-t-4 border-t-cblue border border-gray-400 rounded-lg">
             <div className="text-3xl text-center">Add Machine</div>
-            <div className="h-8" />
+            <div className="h-6" />
             <input
               className="p-2 px-5 border border-cbluel rounded-lg focus:border-cblue focus:border-2"
               type="text"
               placeholder="Machine Id"
+              value={mid}
+              onChange={(e) => setMid(e.target.value)}
             />
-
-            <div className="h-8" />
+            <div className="h-4" />
+            <input
+              className="p-2 px-5 border border-cbluel rounded-lg focus:border-cblue focus:border-2"
+              type="text"
+              placeholder="Location"
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
+            />
+            <div className="h-4" />
+            <input
+              className="p-2 px-5 border border-cbluel rounded-lg focus:border-cblue focus:border-2"
+              type="text"
+              placeholder="IP Address"
+              value={ipAddress}
+              onChange={(e) => setIpAddress(e.target.value)}
+            />
+            <div className="h-4" />
             <input
               className="p-2 px-5 border border-cbluel rounded-lg focus:border-cblue focus:border-2"
               type="password"
               placeholder="Password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
             />
-
-            <div className="h-8" />
+            <div className="h-4" />
             <input
               className="p-2 px-5 border border-cbluel rounded-lg focus:border-cblue focus:border-2"
               type="password"
               placeholder="Confirm Password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
             />
-
-            <div className="h-8" />
-
-            <button className="p-2 text-white border border-cblue bg-cblue rounded-md hover:border hover:border-cblue hover:text-cblue hover:bg-white">
+            <div className="h-6" />
+            <button
+              onClick={handleAddMachine}
+              className="p-2 text-white border border-cblue bg-cblue rounded-md hover:border hover:border-cblue hover:text-cblue hover:bg-white"
+            >
               ADD MACHINE
             </button>
           </div>

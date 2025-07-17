@@ -3,6 +3,7 @@ import admin from "../middlewares/admin.js";
 import {
   getIpAddress,
   getMachine,
+  createMachine,
   machineLogin,
   updateIpAddress,
 } from "../controllers/machineController.js";
@@ -16,7 +17,7 @@ const router = express.Router();
 
 router.post("/login", machineLogin);
 
-// router.post("/create", admin, createMachine);
+router.post("/create", admin, createMachine);
 router.get("/getMachine/:mid", getMachine);
 
 router.get("/getIpaddress/:mid", getIpAddress);

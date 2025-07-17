@@ -28,6 +28,36 @@ export const machineLogin = async (req, res) => {
 };
 
 // ----------------------------------------------------------------------------
+export const createMachine = async (req, res) => {
+  const { mid, password, location, ipAddress } = req.body;
+
+  if (!mid || !password || !location || !ipAddress) {
+    throw new BadRequestError("All fields (mid, password, location, ipAddress) are required");
+  }
+
+  const existing = await Machine.findOne({ mid });
+  if (existing) {
+    throw new BadRequestError("Machine with this ID already exists");
+  }
+
+  const machine = await Machine.create({ mid, password, location, ipAddress });
+
+  const token = machine.createJwt();
+
+  res.status(StatusCodes.CREATED).json({
+    result: {
+      machine: {
+        mid: machine.mid,
+        mstatus: machine.mstatus,
+        location: machine.location,
+        ipAddress: machine.ipAddress,
+      },
+      token,
+    },
+  });
+};
+
+// ----------------------------------------------------------------------------
 export const getMachine = async (req, res) => {
   const { mid } = req.params;
   const machine = await Machine.findOne({ mid });

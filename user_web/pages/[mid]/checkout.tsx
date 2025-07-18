@@ -37,7 +37,7 @@ function ItemCard({ item, index }: { item: ItemModel; index: number }) {
       {/* image */}
       <div className="flex-grow-[0.35] basis-0 flex flex-col justify-center">
         <div className="relative h-full w-full">
-          <Image src={item.imgUrl} alt="" fill={true} className="rounded-md" />
+          <Image src={"/paniPuri.png"} alt="" fill={true} className="rounded-md" />
         </div>
       </div>
 

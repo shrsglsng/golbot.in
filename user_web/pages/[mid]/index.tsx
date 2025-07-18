@@ -36,7 +36,7 @@ function PuriCard({ item, index }: { item: ItemModel; index: number }) {
         <div className="relative h-full w-full">
           {item.imgUrl ? (
             <Image
-              src={item.imgUrl}
+              src={"/paniPuri.png"}
               alt={item.name}
               fill
               className="rounded-md object-cover"

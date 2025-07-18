@@ -1,5 +1,6 @@
 export type OrderModel = {
   oid?: string;
+  id: string;
   uid: any;
   itemQty?: { GOL: number; PAN: number; PWO: number };
   machineId: string;

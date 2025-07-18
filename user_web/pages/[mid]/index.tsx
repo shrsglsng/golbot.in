@@ -4,11 +4,17 @@ import Image from "next/image"
 import { useRouter } from "next/router"
 import { useSelector, useDispatch } from "react-redux"
 import { selectCart, setItems, updateCart } from "../../redux/cartSlice"
-import { ItemModel } from "../../models/itemModel"
 import { GetServerSideProps } from "next/types"
 import Navbar from "../../shared/navbar"
+import { ItemModel as BaseItemModel } from "../../models/itemModel"
 
-function PuriCard({ item, index }: { item: ItemModel; index: number }) {
+// Extend base model to include frontend-specific fields
+type ExtendedItemModel = BaseItemModel & {
+  quantity: number
+  availableQty: number
+}
+
+function PuriCard({ item, index }: Readonly<{ item: ExtendedItemModel; index: number }>) {
   const dispatch = useDispatch()
 
   function handleBtnClick(action: "+" | "-") {
@@ -19,9 +25,39 @@ function PuriCard({ item, index }: { item: ItemModel; index: number }) {
     }
   }
 
+  const renderControls = () => {
+    if (!item.isAvailable) {
+      return (
+        <div className="w-4/5 -mt-5 bg-zinc-200 border border-cblue rounded-md grid place-items-center text-xs text-zinc-500">
+          <span>Sold Out</span>
+        </div>
+      )
+    }
+
+    if (item.quantity === 0) {
+      return (
+        <button
+          onClick={() => handleBtnClick("+")}
+          className="w-4/5 -mt-5 bg-blue-50 border border-cblue rounded-md place-items-center grid"
+        >
+          <div className="w-full px-3 py-1 text-cblue text-center font-bold">Add</div>
+        </button>
+      )
+    }
+
+    return (
+      <div className="w-4/5 -mt-5 bg-cblue rounded-md place-items-center grid">
+        <div className="w-full px-3 py-1 flex justify-between items-center text-white">
+          <button onClick={() => handleBtnClick("-")}>−</button>
+          <div>{item.quantity}</div>
+          <button onClick={() => handleBtnClick("+")}>+</button>
+        </div>
+      </div>
+    )
+  }
+
   return (
-    <div className="h-36 w-full p-5 flex" key={index}>
-      {/* description */}
+    <div className="h-36 w-full p-5 flex" key={item.id}>
       <div className="flex-grow-[0.7] basis-0 flex flex-col">
         <Image src="/vegIcon.svg" height={20} width={20} alt="Veg Icon" />
         <div className="h-1" />
@@ -31,7 +67,6 @@ function PuriCard({ item, index }: { item: ItemModel; index: number }) {
         <div className="text-xs text-gray-500">{item.desc}</div>
       </div>
 
-      {/* image and add/counter UI */}
       <div className="flex-grow-[0.3] basis-0 flex flex-col justify-center">
         <div className="relative h-full w-full">
           {item.imgUrl ? (
@@ -48,39 +83,16 @@ function PuriCard({ item, index }: { item: ItemModel; index: number }) {
           )}
         </div>
 
-        <div className="w-full relative h-4 flex justify-center">
-          {item.isAvailable ? (
-            item.quantity === 0 ? (
-              <button
-                onClick={() => handleBtnClick("+")}
-                className="w-4/5 -mt-5 bg-blue-50 border border-cblue rounded-md place-items-center grid"
-              >
-                <div className="w-full px-3 py-1 text-cblue text-center font-bold">Add</div>
-              </button>
-            ) : (
-              <div className="w-4/5 -mt-5 bg-cblue rounded-md place-items-center grid">
-                <div className="w-full px-3 py-1 flex justify-between items-center text-white">
-                  <button onClick={() => handleBtnClick("-")}>−</button>
-                  <div>{item.quantity}</div>
-                  <button onClick={() => handleBtnClick("+")}>+</button>
-                </div>
-              </div>
-            )
-          ) : (
-            <div className="w-4/5 -mt-5 bg-zinc-200 border border-cblue rounded-md grid place-items-center text-xs text-zinc-500">
-              <span>Sold Out</span>
-            </div>
-          )}
-        </div>
+        <div className="w-full relative h-4 flex justify-center">{renderControls()}</div>
       </div>
     </div>
   )
 }
 
-export default function Home({ allItems }: { allItems: ItemModel[] }) {
+export default function Home({ allItems }: Readonly<{ allItems: ExtendedItemModel[] }>) {
   const router = useRouter()
   const dispatch = useDispatch()
-  const items = useSelector(selectCart)
+  const items = useSelector(selectCart) as ExtendedItemModel[]
   const { mid } = router.query
   const [total, setTotal] = useState(0)
 
@@ -90,7 +102,7 @@ export default function Home({ allItems }: { allItems: ItemModel[] }) {
 
   useEffect(() => {
     let tmp = 0
-    items.forEach((ele: ItemModel) => {
+    items.forEach((ele) => {
       if (!isNaN(ele.price) && !isNaN(ele.quantity)) {
         tmp += ele.price * ele.quantity
       }
@@ -115,7 +127,6 @@ export default function Home({ allItems }: { allItems: ItemModel[] }) {
         <div className="w-full md:w-1/2 lg:w-1/4 flex flex-col">
           <div className="w-full flex flex-col overflow-y-auto">
             <div className="h-20" />
-
             <div className="h-64 py-5">
               <div className="relative h-full w-full">
                 <Image src={"/packed-food.webp"} alt="Header Banner" fill />
@@ -123,8 +134,8 @@ export default function Home({ allItems }: { allItems: ItemModel[] }) {
             </div>
 
             {Array.isArray(items) && items.length > 0 ? (
-              items.map((item: ItemModel, i: number) => (
-                <div key={i}>
+              items.map((item, i) => (
+                <div key={item.id}>
                   <PuriCard item={item} index={i} />
                   {i !== items.length - 1 && (
                     <div className="h-2 bg-white grid place-items-center px-5">
@@ -174,9 +185,15 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
   }
 
   const itemsRes = await fetch(`${process.env.NEXT_PUBLIC_SERVER_URL}/getAllItems`)
-  const allItems = (await itemsRes.json())["items"]
+  const rawItems = (await itemsRes.json())["items"]
+
+  const allItems: ExtendedItemModel[] = rawItems.map((item: BaseItemModel) => ({
+    ...item,
+    availableQty: item.quantity,
+    quantity: 0,
+  }))
 
   return {
-    props: { allItems: [...allItems] },
+    props: { allItems },
   }
 }

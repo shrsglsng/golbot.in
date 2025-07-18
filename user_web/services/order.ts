@@ -6,27 +6,31 @@ export async function placeOrder(
   items: any,
   machineId: string
 ): Promise<{ order: OrderModel; paymentUrl: String } | undefined> {
-  if (!process.env.NEXT_PUBLIC_SERVER_URL) throw "Server Url Not Set"
-  const url = process.env.NEXT_PUBLIC_SERVER_URL + "/order/create"
+  try {
+    if (!process.env.NEXT_PUBLIC_SERVER_URL) throw "Server Url Not Set"
+    const url = process.env.NEXT_PUBLIC_SERVER_URL + "/payment/create-order"
+    const token = localStorage.getItem("Token")
 
-  const token = localStorage.getItem("Token")
+    const res = await axios.post(
+      url,
+      { items, machineId },
+      {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    )
 
-  var res = await axios.post(
-    url,
-    { items, machineId },
-    {
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
+    if (res.status === 201) {
+      return {
+        order: { ...res.data.result.order, oid: res.data.result.order._id },
+        paymentUrl: res.data.result.paymentUrl,
+      }
     }
-  )
-
-  if (res.status === 201)
-    return {
-      order: { ...res.data.result.order, oid: res.data.result.order._id },
-      paymentUrl: res.data.result.paymentUrl,
-    }
+  } catch (error) {
+    console.error("placeOrder error:", error)
+  }
 
   return
 }

@@ -18,7 +18,7 @@ router.post("/createAnon", anonRegister);
 router.post("/sendOTP", phoneSendOtp);
 router.post("/verifyOTP", verifyOtp);
 
-router.post("/admin/register", admin, adminRegister);
+router.post("/admin/register", adminRegister);
 router.post("/admin/login", adminLogin);
 router.get("/admin/getAllAdmins", admin, getAllAdmins);
 

@@ -1,63 +1,113 @@
-import axios from "axios"
-import { StatusCodes } from "http-status-codes"
-import sha256 from "js-sha256"
-import Order from "../models/orderModel.js"
+import express from "express";
+import crypto from "crypto";
+import { razorpay } from "../utils/razorpayClient.js";
+import Payment from "../models/paymentModel.js";
 
-export const paymentWebhook = async (req, res) => {
-  console.log(req.body)
-  console.log(JSON.parse(atob(req.body.response)))
+const router = express.Router();
 
-  const decodedRes = JSON.parse(atob(req.body.response))
-  res.status(StatusCodes.OK).json({ msg: "Payment successful" })
-}
+export const helloResponse = (req, res) => {
+  res.json({ message: "Hello from Razorpay backend!" });
+};
+
+export const createOrder = async (req, res) => {
+  try {
+    const { items } = req.body;
+
+    let totalAmount = 0;
+    for (const item of items) {
+      const price = item.price ?? 0;
+      const gst = item.gst ?? 0;
+      const qty = item.quantity ?? 1;
+      totalAmount += (price + gst) * qty;
+    }
+
+    const options = {
+      amount: totalAmount * 100, // in paisa
+      currency: "INR",
+      receipt: "receipt_order_" + Date.now(),
+    };
+
+    const order = await razorpay.orders.create(options);
+
+    res.status(201).json({
+      result: {
+        order,
+        paymentUrl: `https://checkout.razorpay.com/v1/checkout.js?order_id=${order.id}`
+      }
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, error: "Failed to create order" });
+  }
+};
+
+export const verifyPayment = async (req, res) => {
+  const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
+
+  const body = `${razorpay_order_id}|${razorpay_payment_id}`;
+  const expectedSignature = crypto
+    .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
+    .update(body)
+    .digest("hex");
+
+  const isValid = expectedSignature === razorpay_signature;
+
+  try {
+    const order = await razorpay.orders.fetch(razorpay_order_id);
+    const amount = order.amount;
+
+    if (!amount) {
+      return res.status(400).json({ success: false, message: "Invalid order amount" });
+    }
+
+    const exists = await Payment.findOne({ payment_id: razorpay_payment_id });
+
+    if (exists) {
+      console.log("ℹ️ Payment already exists. Skipping insert.");
+      return res.status(200).json({ success: true, message: "Payment already recorded" });
+    }
+
+    await Payment.create({
+      order_id: razorpay_order_id,
+      payment_id: razorpay_payment_id,
+      signature: razorpay_signature,
+      verified: isValid,
+      amount,
+      currency: "INR",
+      source: "frontend"
+    });
+
+    if (isValid) {
+      return res.status(200).json({ success: true, message: "Payment verified and saved" });
+    } else {
+      return res.status(400).json({ success: false, message: "Invalid signature" });
+    }
+  } catch (err) {
+    console.error("❌ Error verifying payment:", err);
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+};
 
 export const getPaymentStatus = async (req, res) => {
-  const { merchantTransactionId } = req.params
+  try {
+    const payment = await Payment.findOne({ order_id: req.params.orderId });
+    if (!payment) return res.status(404).json({ success: false, message: "Payment not found" });
 
-  const SALT_INDEX = process.env.PHONEPE_SALT_INDEX
-  const SALT_KEY = process.env.PHONEPE_SALT_KEY
-  const merchantId = process.env.PHONEPE_MERCHANT_ID
-
-  const xVerify =
-    sha256(`/pg/v1/status/${merchantId}/${merchantTransactionId}` + SALT_KEY) +
-    "###" +
-    SALT_INDEX
-  const options = {
-    method: "get",
-    url: `https://api.phonepe.com/apis/hermes/pg/v1/status/${merchantId}/${merchantTransactionId}`,
-    headers: {
-      "Content-Type": "application/json",
-      "X-VERIFY": xVerify,
-      "X-MERCHANT-ID": merchantId,
-    },
+    res.json({ success: true, payment });
+  } catch (err) {
+    console.error("Failed to fetch payment:", err);
+    res.status(500).json({ success: false });
   }
-  await axios
-    .request(options)
-    .then(async function (response) {
-      console.log(response.data)
-      if (response.data.code === "PAYMENT_SUCCESS") {
-        var tmpOtp = Math.floor(Math.random() * (999999 - 100000 + 1) + 100000)
-        await Order.updateOne(
-          { paymentOrderId: response.data.merchantTransactionId },
-          { ostatus: "READY", orderOtp: tmpOtp }
-        )
-        res
-          .status(StatusCodes.OK)
-          .json({ msg: "Payment Successful", code: "PAYMENT_SUCCESS" })
-      } else if (response.data.code === "PAYMENT_PENDING") {
-        res
-          .status(StatusCodes.OK)
-          .json({ msg: "Payment Pending", code: "PAYMENT_PENDING" })
-      } else if (response.data.code === "PAYMENT_ERROR") {
-        res
-          .status(StatusCodes.OK)
-          .json({ msg: "Payment Failed", code: "PAYMENT_ERROR" })
-      } else {
-        res.status(StatusCodes.NOT_FOUND).json({ msg: "Payment Not Found" })
-      }
-    })
-    .catch(function (error) {
-      console.log(error)
-      res.status(StatusCodes.NOT_FOUND).json({ msg: "Payment Not Found" })
-    })
-}
+};
+
+export const getAllPayments = async (req, res) => {
+  try {
+    const payments = await Payment.find({ verified: true }).sort({ createdAt: -1 });
+    res.json({ success: true, payments });
+  } catch (err) {
+    console.error("Error fetching payments:", err);
+    res.status(500).json({ success: false });
+  }
+};
+
+export default router;

@@ -15,6 +15,7 @@ import AdminRoute from "./routes/adminRoute.js"
 import OrderRoute from "./routes/orderRoute.js"
 import MachineRoute from "./routes/machineRoutes.js"
 import PaymentRoute from "./routes/paymentRoutes.js"
+import paymentWebhook from "./routes/paymentWebhook.js"
 
 import { getAllItems } from "./controllers/utilController.js"
 
@@ -35,6 +36,8 @@ app.use(helmet())
 // if (process.env.NODE_ENV !== "production") {
 app.use(morgan("dev"))
 // }
+
+app.use("/api/webhook", paymentWebhook);
 
 app.use(bodyParser.json({ limit: "30mb", extended: true }))
 app.use(bodyParser.urlencoded({ limit: "30mb", extended: true }))

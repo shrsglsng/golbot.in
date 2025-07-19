@@ -9,7 +9,7 @@ export default function PaymentSuccessPage() {
     if (!mid || !txnId) return;
 
     const timeout = setTimeout(() => {
-      router.replace(`/${mid}/preparingOrder`);
+      router.replace(`/${mid}/preparingOrder?fromPayment=true`);
     }, 2000); // 2 seconds delay
 
     return () => clearTimeout(timeout);

@@ -9,6 +9,10 @@ import auth from "../middlewares/auth.js";
 
 const router = express.Router();
 
+router.get("/hello", (req, res) => {
+  res.send("Hello World");
+});
+
 // Razorpay
 router.post("/create-order", auth, createRazorpayOrder);
 router.post("/verify", auth, verifyRazorpayPayment);

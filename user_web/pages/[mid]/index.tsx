@@ -95,6 +95,7 @@ export default function Home({ allItems }: Readonly<{ allItems: ExtendedItemMode
   const items = useSelector(selectCart) as ExtendedItemModel[]
   const { mid } = router.query
   const [total, setTotal] = useState(0)
+  const [showOrderStrip, setShowOrderStrip] = useState(false)
 
   useEffect(() => {
     dispatch(setItems({ allItems }))
@@ -110,6 +111,20 @@ export default function Home({ allItems }: Readonly<{ allItems: ExtendedItemMode
     setTotal(tmp)
   }, [items])
 
+  useEffect(() => {
+    // Check if user came from order completion
+    if (router.asPath.includes('fromOrderComplete=true')) {
+      setShowOrderStrip(true)
+      
+      // Hide the strip after 10 seconds
+      const stripTimeout = setTimeout(() => {
+        setShowOrderStrip(false)
+      }, 10000)
+
+      return () => clearTimeout(stripTimeout)
+    }
+  }, [router.asPath])
+
   return (
     <>
       <Head>
@@ -122,6 +137,26 @@ export default function Home({ allItems }: Readonly<{ allItems: ExtendedItemMode
       <div className="w-full fixed top-0 z-10">
         <Navbar />
       </div>
+
+      {/* Green strip for order completion */}
+      {showOrderStrip && (
+        <div className="w-full bg-gradient-to-r from-green-600 to-green-500 text-white py-4 px-6 fixed top-16 z-10 shadow-md border-b border-green-400 animate-in slide-in-from-top-5 duration-500">
+          <div className="flex items-center justify-center space-x-3">
+            <div className="w-2 h-2 bg-white rounded-full animate-bounce"></div>
+            <div className="animate-in fade-in-50 duration-700 delay-200">
+              <p className="text-center font-semibold text-sm tracking-wide animate-pulse">
+                🍽️ Your order is being prepared
+              </p>
+            </div>
+            <div className="w-2 h-2 bg-white rounded-full animate-bounce animation-delay-300"></div>
+          </div>
+          
+          {/* Progress bar animation */}
+          <div className="mt-2 w-full bg-green-700 bg-opacity-30 rounded-full h-1">
+            <div className="bg-white h-1 rounded-full animate-pulse"></div>
+          </div>
+        </div>
+      )}
 
       <div className="w-full grid place-items-center">
         <div className="w-full md:w-1/2 lg:w-1/4 flex flex-col">

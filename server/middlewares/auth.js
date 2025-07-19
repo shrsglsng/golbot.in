@@ -4,7 +4,7 @@ import { UnauthenticatedError } from "../utils/errors.js";
 const auth = async (req, res, next) => {
   const authHeader = req.headers.authorization || req.headers.Authorization;
   if (!authHeader || !authHeader.startsWith("Bearer")) {
-    throw new UnauthenticatedError("Authentication Invalid");
+    throw new UnauthenticatedError("Please login to continue");
   }
 
   const token = authHeader.split(" ")[1];
@@ -13,7 +13,7 @@ const auth = async (req, res, next) => {
     req.user = { uid: payload.uid, phone: payload.phone };
     next();
   } catch (error) {
-    throw new UnauthenticatedError("Authentication Invalid");
+    throw new UnauthenticatedError("Session expired. Please login again");
   }
 };
 

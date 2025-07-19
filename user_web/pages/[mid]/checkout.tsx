@@ -11,6 +11,7 @@ import { updateOrder } from "../../redux/orderSlice";
 import { GetServerSideProps } from "next/types";
 import Navbar from "../../shared/navbar";
 import { ItemModel as BaseItemModel } from "../../models/itemModel";
+import { handleAuthenticationError, showUserFriendlyError } from "../../utils/authErrorHandler";
 
 type ExtendedItemModel = BaseItemModel & { quantity: number };
 
@@ -65,8 +66,13 @@ function CheckoutPage() {
     setIsConBtnLoading(true);
 
     try {
+      const itemsToOrder = items.filter((item) => item.quantity > 0);
+      if (itemsToOrder.length === 0) {
+        throw new Error("No valid items to order");
+      }
+
       // Step 1: Create DB Order
-      const result = await placeOrder(items, mid?.toString() ?? "");
+      const result = await placeOrder(itemsToOrder, mid?.toString() ?? "");
       const dbOrder = result?.order;
 
       if (!dbOrder?.oid) throw new Error("Failed to create order");
@@ -149,9 +155,16 @@ function CheckoutPage() {
       });
 
       razorpay.open();
-    } catch (err) {
+    } catch (err: any) {
       console.error("❌ Payment initiation failed:", err);
-      alert("Something went wrong while creating your order. Please try again.");
+      
+      // Handle authentication errors
+      if (handleAuthenticationError(err, router, mid?.toString())) {
+        return;
+      }
+      
+      // Show user-friendly error message
+      showUserFriendlyError(err, "Something went wrong while creating your order. Please try again.");
     } finally {
       setIsConBtnLoading(false);
     }

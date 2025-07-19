@@ -33,8 +33,21 @@ export async function placeOrder(
     }
 
     console.error("Unexpected response from placeOrder:", res.data);
-  } catch (error) {
+  } catch (error: any) {
     console.error("❌ placeOrder error:", error);
+    
+    // Handle authentication errors
+    if (error.response?.status === 401) {
+      localStorage.removeItem("Token");
+      throw new Error("AUTHENTICATION_REQUIRED");
+    }
+    
+    // Handle other errors with user-friendly messages
+    if (error.response?.data?.msg) {
+      throw new Error(error.response.data.msg);
+    }
+    
+    throw new Error("Failed to place order. Please try again.");
   }
 
   return undefined;
@@ -45,7 +58,7 @@ export async function getOrderOtp(): Promise<OrderModel | undefined> {
   const baseUrl = process.env.NEXT_PUBLIC_SERVER_URL;
   if (!baseUrl) throw new Error("Server URL not set");
 
-  const url = `${baseUrl}/order/getOrderOtp`;
+  const url = `${baseUrl}/order/otp`;
   const token = localStorage.getItem("Token");
 
   try {
@@ -59,8 +72,15 @@ export async function getOrderOtp(): Promise<OrderModel | undefined> {
     if (res.status === 200) {
       return { ...res.data.result.order, oid: res.data.result.order._id };
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error("getOrderOtp error:", error);
+    
+    if (error.response?.status === 401) {
+      localStorage.removeItem("Token");
+      // Note: This function doesn't have router access, 
+      // so authentication errors should be handled by the caller
+      throw new Error("AUTHENTICATION_REQUIRED");
+    }
   }
 
   return undefined;
@@ -85,8 +105,13 @@ export async function getLatestOrder(): Promise<OrderModel | undefined> {
     if (res.status === 200) {
       return { ...res.data.result.order, oid: res.data.result.order._id };
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error("getLatestOrder error:", error);
+    
+    if (error.response?.status === 401) {
+      localStorage.removeItem("Token");
+      throw new Error("AUTHENTICATION_REQUIRED");
+    }
   }
 
   return undefined;
@@ -101,7 +126,7 @@ export async function getIsOrderCompleted({
   const baseUrl = process.env.NEXT_PUBLIC_SERVER_URL;
   if (!baseUrl) throw new Error("Server URL not set");
 
-  const url = `${baseUrl}/order/getIsOrderCompleted`;
+  const url = `${baseUrl}/order/completed`;
   const token = localStorage.getItem("Token");
 
   try {
@@ -133,7 +158,7 @@ export async function getIsOrderPreparing(): Promise<boolean> {
   const baseUrl = process.env.NEXT_PUBLIC_SERVER_URL;
   if (!baseUrl) throw new Error("Server URL not set");
 
-  const url = `${baseUrl}/order/getIsOrderPreparing`;
+  const url = `${baseUrl}/order/preparing`;
   const token = localStorage.getItem("Token");
 
   try {
@@ -145,8 +170,13 @@ export async function getIsOrderPreparing(): Promise<boolean> {
     });
 
     if (res.status === 200) return res.data.result.isOrderPreparing;
-  } catch (error) {
+  } catch (error: any) {
     console.error("getIsOrderPreparing error:", error);
+    
+    if (error.response?.status === 401) {
+      localStorage.removeItem("Token");
+      throw new Error("AUTHENTICATION_REQUIRED");
+    }
   }
 
   return false;
@@ -157,7 +187,7 @@ export async function reportIssue(data: any): Promise<boolean> {
   const baseUrl = process.env.NEXT_PUBLIC_SERVER_URL;
   if (!baseUrl) throw new Error("Server URL not set");
 
-  const url = `${baseUrl}/order/reportIssue/`;
+  const url = `${baseUrl}/order/report`;
   const token = localStorage.getItem("Token");
 
   try {
@@ -168,8 +198,14 @@ export async function reportIssue(data: any): Promise<boolean> {
       },
     });
     return true;
-  } catch (error) {
+  } catch (error: any) {
     console.error("reportIssue error:", error);
+    
+    if (error.response?.status === 401) {
+      localStorage.removeItem("Token");
+      throw new Error("AUTHENTICATION_REQUIRED");
+    }
+    
     return false;
   }
 }

@@ -7,18 +7,19 @@ import { getIsOrderPreparing } from "../../services/order"
 function PreparingOrder() {
   const router = useRouter()
   const { mid } = router.query
+
   useEffect(() => {
     if (!mid) return
 
     ;(async () => {
       //   console.log(!(await getIsOrderPreparing()));
       if (!(await getIsOrderPreparing())) {
-        router.replace(`/${router.query.mid}`)
+        router.replace(`/${router.query.mid}?fromOrderComplete=true`)
       }
 
       var tmpInterval = setInterval(async () => {
         if (!(await getIsOrderPreparing())) {
-          router.replace(`/${router.query.mid}`)
+          router.replace(`/${router.query.mid}?fromOrderComplete=true`)
           clearInterval(tmpInterval)
         }
       }, 5000)

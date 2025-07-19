@@ -264,14 +264,25 @@ export const startMachine = async (req, res) => {
 
     // Use transaction to update order status
     await DatabaseUtil.transaction(async (session) => {
-      // Update order status
-      await DatabaseUtil.updateById(Order, order._id, {
-        orderStatus: "PREPARING",
-        orderOtp: "", // Clear OTP after use
-        orderCompleted: true,
-        preparingStartedAt: new Date(),
-        completedAt: new Date()
-      }, { session });
+      // Update order status using the new method
+      const orderToUpdate = await Order.findById(order._id).session(session);
+      await orderToUpdate.updateStatus(
+        "PREPARING",
+        "machine",
+        "Order preparation started by machine",
+        {
+          machineId: machine.mid,
+          machineName: machine.name,
+          location: machine.location
+        }
+      );
+      
+      // Clear OTP after use and set completion info
+      orderToUpdate.orderOtp = "";
+      orderToUpdate.orderCompleted = true;
+      orderToUpdate.preparingStartedAt = new Date();
+      orderToUpdate.estimatedCompletionTime = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes estimate
+      await orderToUpdate.save({ session });
 
       // Update machine status
       await DatabaseUtil.updateById(Machine, machine._id, {
@@ -317,13 +328,19 @@ export const plateDispensed = async (req, res) => {
   const { oid } = req.params;
   if (!mongoose.isValidObjectId(oid)) throw new BadRequestError("Invalid Order ID");
 
-  const updatedOrder = await Order.findByIdAndUpdate(
-    oid,
-    { orderStatus: "COMPLETED" },
-    { new: true }
-  );
+  const order = await Order.findById(oid);
+  if (!order) throw new NotFoundError("Order not found");
 
-  if (!updatedOrder) throw new NotFoundError("Order not found");
+  // Update order status using the new method
+  await order.updateStatus(
+    "COMPLETED",
+    "machine",
+    "Order completed and plate dispensed",
+    {
+      completedAt: new Date(),
+      dispensedAt: new Date()
+    }
+  );
 
   res.status(StatusCodes.OK).json({ result: "Plate marked as dispensed" });
 };

@@ -101,17 +101,50 @@ const processPaymentWebhook = async (event, paymentEntity) => {
     };
 
     if (existingPayment) {
-      await DatabaseUtil.updateById(Payment, existingPayment._id, paymentData, { session });
+      // Update existing payment record using the new method
+      await existingPayment.updateStatus(
+        "SUCCESS",
+        "razorpay_webhook",
+        "Payment verified via webhook",
+        {
+          webhookEvent: event,
+          amount: paymentEntity.amount / 100
+        },
+        {
+          paymentId: paymentEntity.id,
+          method: paymentEntity.method,
+          bank: paymentEntity.bank,
+          wallet: paymentEntity.wallet,
+          vpa: paymentEntity.vpa
+        }
+      );
+      
+      // Update additional fields
+      existingPayment.razorpaypaymentId = paymentEntity.id;
+      existingPayment.paymentMethod = paymentEntity.method;
+      existingPayment.paymentDetails = paymentData.paymentDetails;
+      await existingPayment.save({ session });
     } else {
       await DatabaseUtil.create(Payment, paymentData, { session });
     }
 
+    // Update order status using the new method
+    const orderToUpdate = await Order.findById(dbOrderId).session(session);
     const orderOtp = Math.floor(1000 + Math.random() * 9000).toString();
-    await DatabaseUtil.updateById(Order, dbOrderId, {
-      orderStatus: "PAID",
-      paidAt: new Date(),
-      orderOtp: orderOtp
-    }, { session });
+    
+    await orderToUpdate.updateStatus(
+      "PAID",
+      "razorpay_webhook",
+      "Payment verified via Razorpay webhook",
+      {
+        paymentId: paymentEntity.id,
+        amount: paymentEntity.amount / 100,
+        webhookEvent: event
+      }
+    );
+    
+    orderToUpdate.orderOtp = orderOtp;
+    await orderToUpdate.save({ session });
   });
 
   logger.info('Webhook payment processed successfully', { 

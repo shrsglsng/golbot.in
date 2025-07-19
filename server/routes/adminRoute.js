@@ -8,7 +8,11 @@ import {
   registerAdmin,
   loginAdmin,
   registerMachine,
-  getAllMachines
+  getAllMachines,
+  updateOrderStatus,
+  getOrderStatusHistory,
+  updatePaymentStatus,
+  getPaymentStatusHistory
 } from "../controllers/adminController.js";
 
 const router = express.Router();
@@ -28,5 +32,13 @@ router.get("/admins", admin, getAllAdmins);
 // Machine management
 router.post("/machines", admin, registerMachine);
 router.get("/machines", admin, getAllMachines);
+
+// Order management with status history
+router.put("/orders/:orderId/status", admin, updateOrderStatus);
+router.get("/orders/:orderId/history", admin, getOrderStatusHistory);
+
+// Payment management with status history
+router.put("/payments/:paymentId/status", admin, updatePaymentStatus);
+router.get("/payments/:paymentId/history", admin, getPaymentStatusHistory);
 
 export default router;

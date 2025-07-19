@@ -231,31 +231,51 @@ export const verifyRazorpayPayment = async (req, res) => {
 
       // Use transaction for payment verification
       await DatabaseUtil.transaction(async (session) => {
-        // Create verified payment record
-        await DatabaseUtil.create(Payment, {
-          orderId: paymentRecord.orderId,
-          razorpayorderId: razorpay_order_id,
-          razorpaypaymentId: razorpay_payment_id,
-          amount: razorOrder.amount / 100,
-          currency: razorOrder.currency,
-          verified: true,
-          status: "SUCCESS",
-          source: "razorpay_webhook",
-          verifiedAt: new Date(),
-          paymentMethod: razorPayment.method,
-          paymentDetails: {
+        // Update existing payment record instead of creating new one
+        await paymentRecord.updateStatus(
+          "SUCCESS",
+          "razorpay_verification",
+          "Payment verified successfully",
+          {
+            verificationSource: "frontend",
+            userId: uid
+          },
+          {
+            paymentId: razorpay_payment_id,
+            signature: razorpay_signature,
+            method: razorPayment.method,
             bank: razorPayment.bank,
             wallet: razorPayment.wallet,
             vpa: razorPayment.vpa
           }
-        }, { session });
+        );
 
-        // Update order status
-        await DatabaseUtil.updateById(Order, order._id, {
-          orderStatus: "PAID",
-          paidAt: new Date(),
-          orderOtp: Math.floor(1000 + Math.random() * 9000).toString() // Generate 4-digit OTP
-        }, { session });
+        // Update payment details
+        paymentRecord.razorpaypaymentId = razorpay_payment_id;
+        paymentRecord.signature = razorpay_signature;
+        paymentRecord.paymentMethod = razorPayment.method;
+        paymentRecord.paymentDetails = {
+          bank: razorPayment.bank,
+          wallet: razorPayment.wallet,
+          vpa: razorPayment.vpa
+        };
+        await paymentRecord.save({ session });
+
+        // Update order status using the new method
+        const orderToUpdate = await Order.findById(order._id).session(session);
+        await orderToUpdate.updateStatus(
+          "PAID",
+          "payment_verified",
+          "Payment verified and completed",
+          {
+            paymentId: razorpay_payment_id,
+            amount: razorOrder.amount / 100
+          }
+        );
+        
+        // Generate OTP for order pickup
+        orderToUpdate.orderOtp = Math.floor(1000 + Math.random() * 9000).toString();
+        await orderToUpdate.save({ session });
       });
 
       logger.info('Payment verified and order updated successfully', { 

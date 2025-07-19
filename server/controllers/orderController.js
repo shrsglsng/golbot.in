@@ -42,19 +42,31 @@ export const createOrder = async (req, res) => {
       location: machine.location 
     });
 
-    // Check for existing pending order
+    // Check for existing orders that should block new order creation
+    // Only block orders that are truly in progress (not completed/cancelled)
     const existingOrder = await DatabaseUtil.findOne(Order, {
       uid: new mongoose.Types.ObjectId(uid),
-      orderStatus: { $in: ["PENDING", "PAID", "PREPARING"] }
+      orderStatus: { $in: ["PENDING", "PREPARING", "READY"] }
+      // PAID orders are allowed to proceed to let users place new orders while waiting
+      // COMPLETED and CANCELLED orders don't block new orders
     });
 
     if (existingOrder) {
-      logger.warn('User has existing pending order', { 
+      const blockingMessages = {
+        'PENDING': 'You have a pending payment. Please complete payment or cancel the order first.',
+        'PREPARING': 'Your order is being prepared. Please wait for completion before placing a new order.',
+        'READY': 'Your order is ready for pickup. Please collect it before placing a new order.'
+      };
+      
+      logger.warn('User has existing blocking order', { 
         userId: uid, 
         existingOrderId: existingOrder._id,
         status: existingOrder.orderStatus 
       });
-      throw new BadRequestError("You have a pending order. Please complete or cancel it first.");
+      
+      const message = blockingMessages[existingOrder.orderStatus] || 
+                     "You have an active order. Please complete it first.";
+      throw new BadRequestError(message);
     }
 
     // Calculate order amount with validation

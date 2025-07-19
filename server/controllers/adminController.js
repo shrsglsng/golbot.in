@@ -1,13 +1,16 @@
 import mongoose from "mongoose";
 import Item from "../models/itemModel.js";
+import Order from "../models/orderModel.js";
+import Payment from "../models/paymentModel.js";
 import Admin from "../models/adminModel.js";
 import Machine from "../models/machineModel.js";
 import reportIssueModel from "../models/reportIssueModel.js";
 import logger from "../utils/logger.js";
-import { BadRequestError, UnauthenticatedError, ConflictError } from "../utils/errors.js";
+import { BadRequestError, UnauthenticatedError, ConflictError, NotFoundError } from "../utils/errors.js";
 import { Validator } from "../utils/validation.js";
 import DatabaseUtil from "../utils/database.js";
 import ApiResponse from "../utils/response.js";
+import { getOrderTimeline, getPaymentHistory } from "../utils/migrationHelpers.js";
 
 // ---------------------------------
 // Add new item
@@ -684,6 +687,213 @@ export const getAllMachines = async (req, res) => {
       error: error.message,
       adminId: req.user?.uid,
       query: req.query 
+    });
+    throw error;
+  }
+};
+
+// ---------------------------------
+// Update order status manually (e.g., mark as READY)
+export const updateOrderStatus = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const { status, reason } = req.body;
+    const adminId = req.user?.uid;
+
+    logger.info('Admin order status update request', { 
+      adminId,
+      orderId,
+      newStatus: status,
+      reason 
+    });
+
+    // Validate input
+    Validator.validateRequired(['status'], { status });
+    Validator.validateObjectId(orderId, 'Order ID');
+    
+    const validStatuses = ["PENDING", "PAID", "READY", "PREPARING", "COMPLETED", "CANCELLED"];
+    if (!validStatuses.includes(status)) {
+      throw new BadRequestError(`Invalid status. Valid statuses: ${validStatuses.join(', ')}`);
+    }
+
+    const order = await Order.findById(orderId)
+      .populate('uid', 'phone email')
+      .populate('machineId', 'mid name location');
+      
+    if (!order) {
+      throw new NotFoundError("Order not found");
+    }
+
+    // Update order status using the new method with admin context
+    await order.updateStatus(
+      status,
+      `admin:${adminId}`,
+      reason || `Status updated by admin to ${status}`,
+      {
+        adminAction: true,
+        previousStatus: order.orderStatus,
+        updatedAt: new Date()
+      }
+    );
+
+    logger.info('Order status updated by admin', {
+      orderId,
+      oldStatus: order.statusHistory[order.statusHistory.length - 2]?.status,
+      newStatus: status,
+      adminId
+    });
+
+    return ApiResponse.success(res, {
+      order: {
+        id: order._id,
+        status: order.orderStatus,
+        customer: order.uid,
+        machine: order.machineId,
+        amount: order.amount,
+        statusInfo: order.getCurrentStatusInfo()
+      }
+    }, "Order status updated successfully");
+
+  } catch (error) {
+    logger.error('Update order status failed', { 
+      error: error.message,
+      orderId: req.params?.orderId,
+      adminId: req.user?.uid 
+    });
+    throw error;
+  }
+};
+
+// ---------------------------------
+// Get order status history/timeline
+export const getOrderStatusHistory = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const adminId = req.user?.uid;
+
+    logger.info('Admin requesting order status history', { adminId, orderId });
+
+    Validator.validateObjectId(orderId, 'Order ID');
+
+    const timeline = await getOrderTimeline(orderId);
+
+    return ApiResponse.success(res, {
+      orderTimeline: timeline
+    }, "Order timeline retrieved successfully");
+
+  } catch (error) {
+    logger.error('Get order status history failed', { 
+      error: error.message,
+      orderId: req.params?.orderId,
+      adminId: req.user?.uid 
+    });
+    throw error;
+  }
+};
+
+// ---------------------------------
+// Get payment history
+export const getPaymentStatusHistory = async (req, res) => {
+  try {
+    const { paymentId } = req.params;
+    const adminId = req.user?.uid;
+
+    logger.info('Admin requesting payment status history', { adminId, paymentId });
+
+    Validator.validateObjectId(paymentId, 'Payment ID');
+
+    const history = await getPaymentHistory(paymentId);
+
+    return ApiResponse.success(res, {
+      paymentHistory: history
+    }, "Payment history retrieved successfully");
+
+  } catch (error) {
+    logger.error('Get payment status history failed', { 
+      error: error.message,
+      paymentId: req.params?.paymentId,
+      adminId: req.user?.uid 
+    });
+    throw error;
+  }
+};
+
+// ---------------------------------
+// Update payment status manually (e.g., for refunds)
+export const updatePaymentStatus = async (req, res) => {
+  try {
+    const { paymentId } = req.params;
+    const { status, reason, refundInfo } = req.body;
+    const adminId = req.user?.uid;
+
+    logger.info('Admin payment status update request', { 
+      adminId,
+      paymentId,
+      newStatus: status,
+      reason 
+    });
+
+    // Validate input
+    Validator.validateRequired(['status'], { status });
+    Validator.validateObjectId(paymentId, 'Payment ID');
+    
+    const validStatuses = ["PENDING", "SUCCESS", "FAILURE", "CANCELLED", "REFUNDED"];
+    if (!validStatuses.includes(status)) {
+      throw new BadRequestError(`Invalid status. Valid statuses: ${validStatuses.join(', ')}`);
+    }
+
+    const payment = await Payment.findById(paymentId).populate('orderId');
+      
+    if (!payment) {
+      throw new NotFoundError("Payment not found");
+    }
+
+    // Handle refund information
+    if (status === 'REFUNDED' && refundInfo) {
+      payment.refundInfo = {
+        refundId: refundInfo.refundId,
+        refundAmount: refundInfo.amount || payment.amount,
+        refundReason: refundInfo.reason || reason,
+        refundedAt: new Date()
+      };
+    }
+
+    // Update payment status using the new method with admin context
+    await payment.updateStatus(
+      status,
+      `admin:${adminId}`,
+      reason || `Status updated by admin to ${status}`,
+      {
+        adminAction: true,
+        previousStatus: payment.status,
+        refundInfo: status === 'REFUNDED' ? payment.refundInfo : undefined
+      }
+    );
+
+    logger.info('Payment status updated by admin', {
+      paymentId,
+      oldStatus: payment.statusHistory[payment.statusHistory.length - 2]?.status,
+      newStatus: status,
+      adminId
+    });
+
+    return ApiResponse.success(res, {
+      payment: {
+        id: payment._id,
+        orderId: payment.orderId,
+        status: payment.status,
+        verified: payment.verified,
+        amount: payment.amount,
+        statusInfo: payment.getCurrentStatusInfo(),
+        refundInfo: payment.refundInfo
+      }
+    }, "Payment status updated successfully");
+
+  } catch (error) {
+    logger.error('Update payment status failed', { 
+      error: error.message,
+      paymentId: req.params?.paymentId,
+      adminId: req.user?.uid 
     });
     throw error;
   }

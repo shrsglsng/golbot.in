@@ -74,14 +74,40 @@ app.use(bodyParser.json({
 app.use(bodyParser.urlencoded({ limit: "30mb", extended: true }));
 
 // CORS configuration
+const allowedOrigins = process.env.CORS_ORIGIN?.split(",").map(o => o.trim()).filter(Boolean);
+
+console.log("🔧 CORS Configuration:");
+console.log("📋 Allowed Origins:", allowedOrigins);
+console.log("🌍 NODE_ENV:", NODE_ENV);
+
 const corsOptions = {
-  origin: NODE_ENV === 'production' 
-    ? [process.env.FRONTEND_URL, process.env.ADMIN_URL].filter(Boolean)
-    : true,
+  origin: function (origin, callback) {
+    console.log("🌍 Incoming request from origin:", origin);
+    
+    // Allow requests with no origin (e.g., mobile apps, Postman)
+    if (!origin) {
+      console.log("✅ Allowing request with no origin");
+      return callback(null, true);
+    }
+    
+    // Check if origin is in allowed list
+    if (allowedOrigins && allowedOrigins.includes(origin)) {
+      console.log("✅ Origin allowed:", origin);
+      return callback(null, true);
+    } else {
+      console.error("❌ CORS Blocked - Origin not in allowed list:", origin);
+      console.error("📋 Allowed origins:", allowedOrigins);
+      return callback(new Error("Not allowed by CORS"));
+    }
+  },
   credentials: true,
-  optionsSuccessStatus: 200
+  optionsSuccessStatus: 200,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept']
 };
+
 app.use(cors(corsOptions));
+
 
 // MongoDB injection protection
 app.use(

@@ -250,7 +250,7 @@ export const getOrderOTP = async (req, res) => {
       userId: uid 
     });
 
-    return ApiResponse.legacy(res, { 
+    return ApiResponse.success(res, { 
       order: { ...order.toObject(), oid: order._id },
       orderOtp: order.orderOtp 
     }, "OTP retrieved successfully");
@@ -290,7 +290,7 @@ export const getLatestOrder = async (req, res) => {
       logger.debug('No orders found for user', { userId: uid });
     }
 
-    return ApiResponse.legacy(res, { 
+    return ApiResponse.success(res, { 
       order: order ? { ...order.toObject(), oid: order._id } : null 
     }, "Latest order retrieved");
 
@@ -317,7 +317,7 @@ export const getIsOrderCompleted = async (req, res) => {
 
     if (!order) {
       logger.debug('No order found for completion check', { userId: uid });
-      return ApiResponse.legacy(res, { 
+      return ApiResponse.success(res, { 
         isOrderCompleted: false 
       }, "No orders found");
     }
@@ -330,7 +330,7 @@ export const getIsOrderCompleted = async (req, res) => {
       isCompleted 
     });
 
-    return ApiResponse.legacy(res, { 
+    return ApiResponse.success(res, { 
       isOrderCompleted: isCompleted 
     }, "Order completion status retrieved");
 
@@ -357,7 +357,9 @@ export const getIsOrderPreparing = async (req, res) => {
 
     if (!order) {
       logger.warn('No order found for preparing check', { userId: uid });
-      throw new NotFoundError("Order not found");
+      return ApiResponse.success(res, { 
+        isOrderPreparing: false 
+      }, "No orders found");
     }
 
     const isPreparing = order.orderStatus === "PREPARING";
@@ -369,7 +371,7 @@ export const getIsOrderPreparing = async (req, res) => {
       isPreparing 
     });
 
-    return ApiResponse.legacy(res, { 
+    return ApiResponse.success(res, { 
       isOrderPreparing: isPreparing 
     }, "Order preparing status retrieved");
 

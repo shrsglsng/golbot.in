@@ -30,7 +30,13 @@ function ItemCard({ item, index }: Readonly<{ item: ExtendedItemModel; index: nu
     <div className="h-36 py-5 w-full flex">
       <div className="flex-grow-[0.35] basis-0 flex flex-col justify-center">
         <div className="relative h-full w-full">
-          <Image src="/paniPuri.png" alt={item.name} fill className="rounded-md" />
+          <Image 
+            src="/paniPuri.png" 
+            alt={item.name} 
+            fill 
+            className="rounded-md" 
+            sizes="140px"
+          />
         </div>
       </div>
       <div className="flex-grow-[0.65] basis-0 pl-5 flex flex-col">
@@ -106,8 +112,8 @@ function CheckoutPage() {
         key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
         amount,
         currency,
-        name: "Your Brand",
-        description: "Order Payment",
+        name: "AiBotInk Pvt. Ltd.",
+        description: `Food Order - ${itemsToOrder.length} item${itemsToOrder.length > 1 ? 's' : ''}`,
         order_id: orderId,
         handler: async function (response: any) {
           const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = response;

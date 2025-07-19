@@ -11,20 +11,44 @@ function PreparingOrder() {
   useEffect(() => {
     if (!mid) return
 
-    ;(async () => {
-      //   console.log(!(await getIsOrderPreparing()));
-      if (!(await getIsOrderPreparing())) {
-        router.replace(`/${router.query.mid}?fromOrderComplete=true`)
-      }
+    let isMounted = true
+    let intervalId: NodeJS.Timeout | null = null
 
-      var tmpInterval = setInterval(async () => {
-        if (!(await getIsOrderPreparing())) {
-          router.replace(`/${router.query.mid}?fromOrderComplete=true`)
-          clearInterval(tmpInterval)
+    const checkOrderStatus = async () => {
+      try {
+        if (!isMounted) return
+        
+        const isStillPreparing = await getIsOrderPreparing()
+        if (!isMounted) return
+        
+        if (!isStillPreparing) {
+          if (intervalId) {
+            clearInterval(intervalId)
+            intervalId = null
+          }
+          if (isMounted) {
+            router.replace(`/${router.query.mid}?fromOrderComplete=true`)
+          }
         }
-      }, 5000)
-    })()
-  }, [mid])
+      } catch (error) {
+        console.error('Error checking order status:', error)
+      }
+    }
+
+    // Initial check
+    checkOrderStatus()
+
+    // Set up interval for subsequent checks
+    intervalId = setInterval(checkOrderStatus, 5000)
+
+    // Cleanup function
+    return () => {
+      isMounted = false
+      if (intervalId) {
+        clearInterval(intervalId)
+      }
+    }
+  }, [mid, router])
   return (
     <>
       <div className="w-full fixed top-0 z-10">
@@ -37,9 +61,10 @@ function PreparingOrder() {
           <div className="relative h-[40%] w-full">
             <Image
               src="/cooking.gif"
-              alt=""
+              alt="Cooking animation"
               fill={true}
               className="rounded-md"
+              sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 25vw"
             />
           </div>
           <div className="h-8" />

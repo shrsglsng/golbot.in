@@ -111,7 +111,11 @@ export async function getLatestOrder(): Promise<OrderModel | undefined> {
     });
 
     if (res.status === 200) {
-      return { ...res.data.data.order, oid: res.data.data.order._id };
+      const order = res.data.data?.order;
+      if (order) {
+        return { ...order, oid: order._id };
+      }
+      return undefined;
     }
   } catch (error: any) {
     console.error("getLatestOrder error:", error);

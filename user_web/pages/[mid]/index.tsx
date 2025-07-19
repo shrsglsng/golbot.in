@@ -57,7 +57,7 @@ function PuriCard({ item, index }: Readonly<{ item: ExtendedItemModel; index: nu
   }
 
   return (
-    <div className="h-36 w-full p-5 flex" key={item.id}>
+    <div className="h-36 w-full p-5 flex">
       <div className="flex-grow-[0.7] basis-0 flex flex-col">
         <Image src="/vegIcon.svg" height={20} width={20} alt="Veg Icon" />
         <div className="h-1" />
@@ -75,6 +75,7 @@ function PuriCard({ item, index }: Readonly<{ item: ExtendedItemModel; index: nu
               alt={item.name}
               fill
               className="rounded-md object-cover"
+              sizes="(max-width: 768px) 120px, 140px"
             />
           ) : (
             <div className="h-full w-full bg-gray-200 flex items-center justify-center rounded-md text-sm text-gray-500">
@@ -164,21 +165,30 @@ export default function Home({ allItems }: Readonly<{ allItems: ExtendedItemMode
             <div className="h-20" />
             <div className="h-64 py-5">
               <div className="relative h-full w-full">
-                <Image src={"/packed-food.webp"} alt="Header Banner" fill />
+                <Image 
+                  src={"/packed-food.webp"} 
+                  alt="Header Banner" 
+                  fill 
+                  priority
+                  sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 25vw"
+                />
               </div>
             </div>
 
             {Array.isArray(items) && items.length > 0 ? (
-              items.map((item, i) => (
-                <div key={item.id}>
-                  <PuriCard item={item} index={i} />
-                  {i !== items.length - 1 && (
-                    <div className="h-2 bg-white grid place-items-center px-5">
-                      <div className="h-[0.5px] w-full bg-black" />
-                    </div>
-                  )}
-                </div>
-              ))
+              items.map((item, i) => {
+                const uniqueKey = item.id ? `item-${item.id}` : `item-index-${i}`;
+                return (
+                  <div key={uniqueKey}>
+                    <PuriCard item={item} index={i} />
+                    {i !== items.length - 1 && (
+                      <div className="h-2 bg-white grid place-items-center px-5">
+                        <div className="h-[0.5px] w-full bg-black" />
+                      </div>
+                    )}
+                  </div>
+                );
+              })
             ) : (
               <div className="text-center text-gray-500 py-10">Loading menu...</div>
             )}

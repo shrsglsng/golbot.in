@@ -2,45 +2,59 @@ import axios from "axios";
 import { UserModel } from "../models/userModel";
 import { updateToken } from "../redux/userSlice";
 
-export async function sendOtp(phone: string) {
+/**
+ * Send OTP to the user's phone number
+ */
+export async function sendOtp(phone: string): Promise<boolean> {
   try {
-    if (!process.env.NEXT_PUBLIC_SERVER_URL) throw "Server Url Not Set";
-    const url = process.env.NEXT_PUBLIC_SERVER_URL + "/auth/sendOTP";
+    const serverUrl = process.env.NEXT_PUBLIC_SERVER_URL;
+    if (!serverUrl) throw new Error("Server URL not set");
 
-    var res = await axios.post(url, { phone });
+    const url = `${serverUrl}/auth/send-otp`;
+    const res = await axios.post(url, { phone });
 
-    if (res.status !== 200) return false;
+    return res.status === 200;
   } catch (error) {
+    console.error("Failed to send OTP:", error);
     return false;
   }
-
-  return true;
 }
 
+/**
+ * Verify OTP and return the user object on success
+ */
 export async function verifyOtp(
   phone: string,
-  OTP: string,
+  otp: string,
   dispatch: any
 ): Promise<UserModel | undefined> {
-  var user: UserModel | undefined = undefined;
+  let user: UserModel | undefined;
 
-  if (!process.env.NEXT_PUBLIC_SERVER_URL) throw "Server Url Not Set";
-  const url = process.env.NEXT_PUBLIC_SERVER_URL + "/auth/verifyOTP";
+  const serverUrl = process.env.NEXT_PUBLIC_SERVER_URL;
+  if (!serverUrl) throw new Error("Server URL not set");
+
+  const url = `${serverUrl}/auth/verify-otp`;
 
   try {
-    var res = await axios.post(url, { phone, OTP });
+    console.log("Verifying OTP for phone:", phone, "OTP:", otp);
+    const res = await axios.post(url, { phone, otp });
 
-    if (res.status !== 200) return undefined;
+    if (res.status !== 200) {
+      console.warn("OTP verification failed with status:", res.status);
+      return undefined;
+    }
 
     user = {
       ...res.data.user,
       token: res.data.token,
     };
 
-    localStorage.setItem("Token", res.data.token);
-    dispatch(updateToken({ token: user?.token }));
+    if (user?.token) {
+      localStorage.setItem("Token", user.token);
+      dispatch(updateToken({ token: user.token }));
+    }
   } catch (error) {
-    console.log(error);
+    console.error("OTP verification failed:", error);
   }
 
   return user;

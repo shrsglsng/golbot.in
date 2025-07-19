@@ -71,7 +71,7 @@ export async function getLatestOrder(): Promise<OrderModel | undefined> {
   const baseUrl = process.env.NEXT_PUBLIC_SERVER_URL;
   if (!baseUrl) throw new Error("Server URL not set");
 
-  const url = `${baseUrl}/order/getLatest`;
+  const url = `${baseUrl}/order/latest`;
   const token = localStorage.getItem("Token");
 
   try {

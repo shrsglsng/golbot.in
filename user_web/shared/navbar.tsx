@@ -83,7 +83,7 @@ function Navbar() {
           aria-label="Go to home"
           onKeyDown={(e) => {
             if (e.key === "Enter" || e.key === " ") {
-              router.push(`/${router.query.mid ?? "/"}`);
+              router.push(`/${router.query.mid ?? "/"}`)
             }
           }}
           style={{ outline: "none" }}
@@ -112,63 +112,67 @@ function Navbar() {
         </div>
       </div>
 
-      {/* Drawer */}
-      <div
-        className={`fixed top-0 right-0 z-40 h-screen w-screen bg-black/40 backdrop-blur-sm transition-transform duration-300 ${
-          showDrawer ? "translate-x-0" : "translate-x-full"
-        }`}
-      >
-        <div className="absolute right-0 top-0 h-full w-4/5 sm:w-2/3 md:w-1/2 bg-white rounded-l-2xl p-6 flex flex-col">
-          <div className="flex justify-between items-center mb-8">
-            <span className="text-xl font-semibold text-cblue">Menu</span>
-            <button onClick={() => setShowDrawer(false)}>
-              <CloseIcon fontSize="large" className="text-cblue" />
-            </button>
-          </div>
-
-          <div className="flex flex-col gap-5 text-lg text-gray-700">
-            {navLinks.map((link) => (
-              <Link
-                key={link.href}
-                href={`/${link.href}`}
-                className="hover:text-cblue transition"
-                onClick={() => setShowDrawer(false)}
-              >
-                {link.label}
-              </Link>
-            ))}
-          </div>
-
-          <div className="mt-auto pt-8 border-t border-gray-300">
-            {loggedIn ? (
-              <button
-                onClick={() => {
-                  localStorage.removeItem("Token")
-                  dispatch(updateOrder({ order: {} }))
-                  router.replace("/")
-                }}
-                className="flex items-center text-cblue hover:text-red-600 transition"
-              >
-                <LogoutIcon className="mr-2" />
-                Logout
+      {showDrawer && (
+        <div
+          className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm"
+          onClick={() => setShowDrawer(false)} // Backdrop click closes
+        >
+          <div
+            onClick={(e) => e.stopPropagation()} // Prevent drawer close on inner click
+            className="absolute right-0 top-0 h-[100dvh] w-4/5 sm:w-2/3 md:w-1/2 bg-white rounded-l-2xl overflow-y-auto flex flex-col"
+          >
+            <div className="flex justify-between items-center px-6 pt-6">
+              <span className="text-xl font-semibold text-cblue">Menu</span>
+              <button onClick={() => setShowDrawer(false)}>
+                <CloseIcon fontSize="large" className="text-cblue" />
               </button>
-            ) : (
-              <button
-                onClick={() => {
-                  router.replace({
-                    pathname: "/auth/login",
-                    query: { next: router.query.mid?.toString() ?? "" },
-                  })
-                }}
-                className="flex items-center text-cblue hover:text-green-600 transition"
-              >
-                <LoginIcon className="mr-2" />
-                Login
-              </button>
-            )}
+            </div>
+
+            <div className="flex flex-col gap-5 text-lg text-gray-700 px-6 py-6">
+              {navLinks.map((link) => (
+                <Link
+                  key={link.href}
+                  href={`/${link.href}`}
+                  className="hover:text-cblue transition"
+                  onClick={() => setShowDrawer(false)}
+                >
+                  {link.label}
+                </Link>
+              ))}
+            </div>
+
+            <div className="mt-auto px-6 py-6 border-t border-gray-300">
+              {loggedIn ? (
+                <button
+                  onClick={() => {
+                    localStorage.removeItem("Token")
+                    dispatch(updateOrder({ order: {} }))
+                    setLoggedIn(false)
+                    router.replace("/")
+                  }}
+                  className="flex items-center text-cblue hover:text-red-600 transition"
+                >
+                  <LogoutIcon className="mr-2" />
+                  Logout
+                </button>
+              ) : (
+                <button
+                  onClick={() => {
+                    router.replace({
+                      pathname: "/auth/login",
+                      query: { next: router.query.mid?.toString() ?? "" },
+                    })
+                  }}
+                  className="flex items-center text-cblue hover:text-green-600 transition"
+                >
+                  <LoginIcon className="mr-2" />
+                  Login
+                </button>
+              )}
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       <LoadingBar color="#f11946" ref={pageLoadingRef} height={3} />
     </>

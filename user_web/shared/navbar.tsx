@@ -30,10 +30,19 @@ function Navbar() {
         dispatch(updateToken({ token }))
         dispatch(updateOrder({ order: await getLatestOrder() }))
         setLoggedIn(true)
-      }
 
-      if (router.query.mid && router.asPath !== `/${router.query.mid}`) {
-        setShowQrBtn(!(await getIsOrderCompleted({ router })))
+        // Only check order completion if user is logged in and not on main page
+        if (router.query.mid && router.asPath !== `/${router.query.mid}`) {
+          try {
+            const isCompleted = await getIsOrderCompleted({ router })
+            setShowQrBtn(!isCompleted)
+          } catch (error: any) {
+            // If there's an authentication error, ignore it silently
+            // This prevents unnecessary error logs when token is invalid
+            console.log("Order completion check skipped - authentication required")
+            setShowQrBtn(false)
+          }
+        }
       }
     }
     init()

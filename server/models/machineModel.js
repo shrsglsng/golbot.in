@@ -9,6 +9,7 @@ const machineSchema = new mongoose.Schema({
     enum: ["CONNECTED", "DISCONNECTED"],
     default: "DISCONNECTED",
   },
+  isActive: { type: Boolean, default: true },
   location: String,
   password: String,
   ipAddress: String,

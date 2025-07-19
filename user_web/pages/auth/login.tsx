@@ -51,7 +51,7 @@ export default function Login() {
       }
 
       router.replace(`/${router.query.next ?? ""}`)
-      dispatch(updateOrder(await getLatestOrder()))
+      dispatch(updateOrder({ order: await getLatestOrder() }))
     }
 
     setIsLoading(false)

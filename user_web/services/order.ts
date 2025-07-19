@@ -27,12 +27,20 @@ export async function placeOrder(
       }
     );
 
-    if (res.status === 201 && res.data?.result?.order) {
-      const { order, paymentUrl } = res.data.result;
+    if (res.status === 201 && res.data?.data?.order) {
+      const { order, paymentUrl } = res.data.data;
+      console.log("✅ Order created successfully:", { order, paymentUrl });
       return { order: { ...order, oid: order._id }, paymentUrl };
     }
 
     console.error("Unexpected response from placeOrder:", res.data);
+    console.error("Response status:", res.status);
+    console.error("Response data structure:", {
+      hasData: !!res.data,
+      hasDataData: !!res.data?.data,
+      hasOrder: !!res.data?.data?.order,
+      orderKeys: res.data?.data?.order ? Object.keys(res.data.data.order) : null
+    });
   } catch (error: any) {
     console.error("❌ placeOrder error:", error);
     
@@ -70,7 +78,7 @@ export async function getOrderOtp(): Promise<OrderModel | undefined> {
     });
 
     if (res.status === 200) {
-      return { ...res.data.result.order, oid: res.data.result.order._id };
+      return { ...res.data.data.order, oid: res.data.data.order._id };
     }
   } catch (error: any) {
     console.error("getOrderOtp error:", error);
@@ -103,7 +111,7 @@ export async function getLatestOrder(): Promise<OrderModel | undefined> {
     });
 
     if (res.status === 200) {
-      return { ...res.data.result.order, oid: res.data.result.order._id };
+      return { ...res.data.data.order, oid: res.data.data.order._id };
     }
   } catch (error: any) {
     console.error("getLatestOrder error:", error);
@@ -126,8 +134,14 @@ export async function getIsOrderCompleted({
   const baseUrl = process.env.NEXT_PUBLIC_SERVER_URL;
   if (!baseUrl) throw new Error("Server URL not set");
 
-  const url = `${baseUrl}/order/completed`;
   const token = localStorage.getItem("Token");
+  
+  // If no token, return false without making the API call
+  if (!token) {
+    return false;
+  }
+
+  const url = `${baseUrl}/order/completed`;
 
   try {
     const res = await axios.get(url, {
@@ -137,20 +151,21 @@ export async function getIsOrderCompleted({
       },
     });
 
-    if (res.status === 200) return res.data.result.isOrderCompleted;
+    if (res.status === 200) return res.data.data.isOrderCompleted;
   } catch (e: any) {
-    console.error("getIsOrderCompleted error:", e);
+    // Only log errors that aren't authentication related
+    if (e.response?.status !== 401) {
+      console.error("getIsOrderCompleted error:", e);
+    }
 
     if (e.response?.status === 401) {
       localStorage.removeItem("Token");
-      router.replace({
-        pathname: "/auth/login",
-        query: { next: router.query.mid?.toString() ?? "" },
-      });
+      // Don't auto-redirect, just throw an error that calling code can handle
+      throw new Error("AUTHENTICATION_REQUIRED");
     }
   }
 
-  return true; // default fallback
+  return false; // default fallback - no completed order
 }
 
 // Is Order Preparing
@@ -169,7 +184,7 @@ export async function getIsOrderPreparing(): Promise<boolean> {
       },
     });
 
-    if (res.status === 200) return res.data.result.isOrderPreparing;
+    if (res.status === 200) return res.data.data.isOrderPreparing;
   } catch (error: any) {
     console.error("getIsOrderPreparing error:", error);
     

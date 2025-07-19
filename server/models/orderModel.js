@@ -10,7 +10,7 @@ const orderSchema = new mongoose.Schema({
   },
   orderStatus: {
     type: String,
-    enum: ["PENDING", "READY", "PREPARING", "COMPLETED", "CANCELLED"],
+    enum: ["PENDING", "PAID", "READY", "PREPARING", "COMPLETED", "CANCELLED"],
     default: "PENDING",
   },
   orderCompleted: { type: Boolean, default: false },

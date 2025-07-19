@@ -15,7 +15,7 @@ export const orderSlice = createSlice({
   reducers: {
     updateOrder: (state, action) => {
       // console.log({ ...state.order, ...action.payload.order });
-      state.order = { ...state.order, ...action.payload.order };
+      state.order = { ...(state.order || {}), ...action.payload.order };
       // console.log("state.order");
       // state.order = {
       //   uid: "6436bc19e2a113c8db135bf3",

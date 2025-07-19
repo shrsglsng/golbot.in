@@ -14,7 +14,7 @@ export const userSlice = createSlice({
   initialState,
   reducers: {
     updateToken: (state, action) => {
-      state.user = { ...state.user, token: action.payload.token };
+      state.user = { ...(state.user || {}), token: action.payload.token };
     },
 
     // TODO: fix this

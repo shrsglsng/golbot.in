@@ -223,7 +223,7 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
 
   const itemsRes = await fetch(`${process.env.NEXT_PUBLIC_SERVER_URL}/getAllItems`);
   const json = await itemsRes.json();
-  const rawItems = json.result?.items ?? [];
+  const rawItems = json.data?.items ?? [];
 
   const allItems: ExtendedItemModel[] = rawItems.map((item: BaseItemModel) => ({
     ...item,

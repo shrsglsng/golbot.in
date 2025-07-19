@@ -45,8 +45,8 @@ export async function verifyOtp(
     }
 
     user = {
-      ...res.data.user,
-      token: res.data.token,
+      ...res.data.data.user,
+      token: res.data.data.token,
     };
 
     if (user?.token) {

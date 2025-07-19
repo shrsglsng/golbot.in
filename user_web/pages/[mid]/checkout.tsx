@@ -95,11 +95,11 @@ function CheckoutPage() {
       const razorData = await razorRes.json();
       console.log("Razorpay order response:", razorData);
 
-      if (razorRes.status !== 201 || !razorData?.result?.orderId) {
+      if (razorRes.status !== 201 || !razorData?.data?.razorpayOrder?.orderId) {
         throw new Error("Failed to create Razorpay order");
       }
 
-      const { orderId, amount, currency } = razorData.result;
+      const { orderId, amount, currency } = razorData.data.razorpayOrder;
 
       // Step 3: Open Razorpay Checkout
       const razorpay = new (window as any).Razorpay({

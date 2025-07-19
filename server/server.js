@@ -1,74 +1,223 @@
-import express from "express"
-import bodyParser from "body-parser"
-import mongoose from "mongoose"
-import cors from "cors"
-import dotenv from "dotenv"
-dotenv.config()
-import "express-async-errors"
-import morgan from "morgan"
-import mongoSanitize from "express-mongo-sanitize"
-import helmet from "helmet"
+import express from "express";
+import bodyParser from "body-parser";
+import mongoose from "mongoose";
+import cors from "cors";
+import dotenv from "dotenv";
+dotenv.config();
+import "express-async-errors";
+import morgan from "morgan";
+import mongoSanitize from "express-mongo-sanitize";
+import helmet from "helmet";
+
+// Import utilities
+import logger from "./utils/logger.js";
+import { responseMiddleware } from "./utils/response.js";
 
 // routes
-import AuthRoute from "./routes/authRoute.js"
-import AdminRoute from "./routes/adminRoute.js"
-import OrderRoute from "./routes/orderRoute.js"
-import MachineRoute from "./routes/machineRoutes.js"
-import PaymentRoute from "./routes/paymentRoutes.js"
-import paymentWebhook from "./routes/paymentWebhook.js"
+import AuthRoute from "./routes/authRoute.js";
+import AdminRoute from "./routes/adminRoute.js";
+import OrderRoute from "./routes/orderRoute.js";
+import MachineRoute from "./routes/machineRoutes.js";
+import PaymentRoute from "./routes/paymentRoutes.js";
+import paymentWebhook from "./routes/paymentWebhook.js";
 
-import { getAllItems } from "./controllers/utilController.js"
+import { getAllItems } from "./controllers/utilController.js";
 
 //middlewares
-import notFoundMiddleware from "./middlewares/notFound.js"
-import errorHandlerMiddleware from "./middlewares/errorHandler.js"
+import notFoundMiddleware from "./middlewares/notFound.js";
+import errorHandlerMiddleware from "./middlewares/errorHandler.js";
 
 // constants
-const BASE_URL_PATH = "/api/v1/"
-const CONNECTION_URL =
-  process.env.EXPAPP_MONGO_URL || process.env.EXPAPP_MONGO_LOCAL_URL
-const PORT = process.env.PORT || process.env.EXPAPP_PORT || 5000
+const BASE_URL_PATH = "/api/v1/";
+const CONNECTION_URL = process.env.EXPAPP_MONGO_URL || process.env.EXPAPP_MONGO_LOCAL_URL;
+const PORT = process.env.PORT || process.env.EXPAPP_PORT || 5000;
+const NODE_ENV = process.env.NODE_ENV || 'development';
 
-const app = express()
+const app = express();
 
-app.use(helmet())
+// Enhanced startup logging
+logger.info('🚀 Starting GolBot Server', {
+  nodeEnv: NODE_ENV,
+  port: PORT,
+  mongoUrl: CONNECTION_URL ? 'configured' : 'missing'
+});
 
-// if (process.env.NODE_ENV !== "production") {
-app.use(morgan("dev"))
-// }
+// Security middleware
+app.use(helmet({
+  contentSecurityPolicy: NODE_ENV === 'production',
+  crossOriginEmbedderPolicy: false
+}));
 
+// Request logging middleware (before routes)
+if (NODE_ENV !== 'production') {
+  app.use(morgan('dev'));
+}
+app.use(logger.requestMiddleware());
+
+// Response helper middleware
+app.use(responseMiddleware);
+
+// Webhook routes (before body parser to handle raw body)
 app.use("/api/webhook", paymentWebhook);
 
-app.use(bodyParser.json({ limit: "30mb", extended: true }))
-app.use(bodyParser.urlencoded({ limit: "30mb", extended: true }))
-app.use(cors())
+// Body parsing middleware
+app.use(bodyParser.json({ 
+  limit: "30mb", 
+  extended: true,
+  verify: (req, res, buf) => {
+    // Store raw body for webhook verification if needed
+    if (req.originalUrl.includes('/webhook')) {
+      req.rawBody = buf;
+    }
+  }
+}));
+app.use(bodyParser.urlencoded({ limit: "30mb", extended: true }));
 
+// CORS configuration
+const corsOptions = {
+  origin: NODE_ENV === 'production' 
+    ? [process.env.FRONTEND_URL, process.env.ADMIN_URL].filter(Boolean)
+    : true,
+  credentials: true,
+  optionsSuccessStatus: 200
+};
+app.use(cors(corsOptions));
+
+// MongoDB injection protection
 app.use(
   mongoSanitize({
     replaceWith: "_",
     onSanitize: ({ req, key }) => {
-      console.warn(`This request[${key}] is sanitized`, req)
+      logger.warn('Request sanitized', { 
+        key, 
+        originalUrl: req.originalUrl,
+        method: req.method,
+        ip: req.ip
+      });
     },
   })
-)
+);
 
-app.use(`${BASE_URL_PATH}auth`, AuthRoute)
-app.use(`${BASE_URL_PATH}admin`, AdminRoute)
-app.use(`${BASE_URL_PATH}order`, OrderRoute)
-app.use(`${BASE_URL_PATH}machine`, MachineRoute)
-app.use(`${BASE_URL_PATH}payment`, PaymentRoute)
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.json({
+    status: 'OK',
+    timestamp: new Date().toISOString(),
+    environment: NODE_ENV,
+    version: process.env.npm_package_version || '1.0.0'
+  });
+});
 
-app.get(`${BASE_URL_PATH}getAllItems`, getAllItems)
+// API routes
+app.use(`${BASE_URL_PATH}auth`, AuthRoute);
+app.use(`${BASE_URL_PATH}admin`, AdminRoute);
+app.use(`${BASE_URL_PATH}order`, OrderRoute);
+app.use(`${BASE_URL_PATH}machine`, MachineRoute);
+app.use(`${BASE_URL_PATH}payment`, PaymentRoute);
 
-app.use(notFoundMiddleware)
-app.use(errorHandlerMiddleware)
+// Utility routes
+app.get(`${BASE_URL_PATH}getAllItems`, getAllItems);
 
-mongoose.set("strictQuery", true)
-mongoose
-  .connect(CONNECTION_URL, { useNewUrlParser: true, useUnifiedTopology: true })
-  .then(() =>
-    app.listen(PORT, () =>
-      console.log(`⚡️[server]: Server is running at http://localhost:${PORT}`)
-    )
-  )
-  .catch((error) => console.log(error.message))
+// Error handling middleware (must be last)
+app.use(notFoundMiddleware);
+app.use(errorHandlerMiddleware);
+
+// Enhanced MongoDB connection with retry logic
+mongoose.set("strictQuery", true);
+
+const connectDB = async (retries = 5) => {
+  try {
+    logger.info('🗄️  Attempting MongoDB connection...', { 
+      retries: retries,
+      url: CONNECTION_URL?.substring(0, 20) + '...' 
+    });
+
+    await mongoose.connect(CONNECTION_URL, {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+      maxPoolSize: 10,
+      serverSelectionTimeoutMS: 5000,
+      socketTimeoutMS: 45000,
+      bufferCommands: false
+    });
+
+    logger.info('✅ MongoDB connected successfully');
+    
+    // Start server after successful DB connection
+    const server = app.listen(PORT, () => {
+      logger.info(`⚡️ Server running successfully`, {
+        port: PORT,
+        environment: NODE_ENV,
+        mongoConnected: mongoose.connection.readyState === 1
+      });
+    });
+
+    // Graceful shutdown handling
+    const gracefulShutdown = (signal) => {
+      logger.info(`🛑 ${signal} received. Starting graceful shutdown...`);
+      
+      server.close(() => {
+        logger.info('💤 HTTP server closed.');
+        
+        mongoose.connection.close(false, () => {
+          logger.info('💤 MongoDB connection closed.');
+          process.exit(0);
+        });
+      });
+    };
+
+    process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+    process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
+  } catch (error) {
+    logger.error('❌ MongoDB connection failed', {
+      error: error.message,
+      retries
+    });
+
+    if (retries > 0) {
+      logger.info(`🔄 Retrying connection in 5 seconds... (${retries} attempts left)`);
+      setTimeout(() => connectDB(retries - 1), 5000);
+    } else {
+      logger.error('💀 Max retries exceeded. Exiting...');
+      process.exit(1);
+    }
+  }
+};
+
+// MongoDB event listeners
+mongoose.connection.on('error', (err) => {
+  logger.error('MongoDB connection error', { error: err.message });
+});
+
+mongoose.connection.on('disconnected', () => {
+  logger.warn('MongoDB disconnected');
+});
+
+mongoose.connection.on('reconnected', () => {
+  logger.info('MongoDB reconnected');
+});
+
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (err, promise) => {
+  logger.error('Unhandled Promise Rejection', {
+    error: err.message,
+    stack: err.stack
+  });
+  
+  // Close server & exit process
+  process.exit(1);
+});
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (err) => {
+  logger.error('Uncaught Exception', {
+    error: err.message,
+    stack: err.stack
+  });
+  
+  process.exit(1);
+});
+
+// Start the connection
+connectDB();

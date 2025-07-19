@@ -1,117 +1,100 @@
 import { StatusCodes } from "http-status-codes";
-import {
-  BadRequestError,
-  NotFoundError,
-  UnauthenticatedError,
-} from "../utils/errors.js";
-import Order from "../models/orderModel.js";
+import { BadRequestError, NotFoundError, UnauthenticatedError } from "../utils/errors.js";
 import Machine from "../models/machineModel.js";
+import Order from "../models/orderModel.js";
+import mongoose from "mongoose";
 
+// ----------------------------------------------------------------------------
+// Machine Login
 export const machineLogin = async (req, res) => {
   const { mid, password } = req.body;
-
   if (!mid || !password) throw new BadRequestError("Enter all fields");
 
   const machine = await Machine.findOne({ mid });
-  if (!machine) throw new UnauthenticatedError("invalid credentials");
-
-  if (!(await machine.comparePassword(password)))
-    throw new UnauthenticatedError("invalid credentials");
+  if (!machine || !(await machine.comparePassword(password))) {
+    throw new UnauthenticatedError("Invalid credentials");
+  }
 
   const token = machine.createJwt();
   res.status(StatusCodes.OK).json({
-    result: {
-      machine: { mid: machine.mid, mstatus: machine.mstatus },
-      token,
-    },
-  });
-};
-
-// ----------------------------------------------------------------------------
-export const createMachine = async (req, res) => {
-  const { mid, password, location, ipAddress } = req.body;
-
-  if (!mid || !password || !location || !ipAddress) {
-    throw new BadRequestError("All fields (mid, password, location, ipAddress) are required");
-  }
-
-  const existing = await Machine.findOne({ mid });
-  if (existing) {
-    throw new BadRequestError("Machine with this ID already exists");
-  }
-
-  const machine = await Machine.create({ mid, password, location, ipAddress });
-
-  const token = machine.createJwt();
-
-  res.status(StatusCodes.CREATED).json({
     result: {
       machine: {
         mid: machine.mid,
         mstatus: machine.mstatus,
         location: machine.location,
-        ipAddress: machine.ipAddress,
+        ipAddress: machine.ipAddress
       },
-      token,
-    },
+      token
+    }
   });
 };
 
 // ----------------------------------------------------------------------------
+// Create Machine (admin protected - done in adminController)
+// NOT NEEDED HERE unless exposed without auth
+
+// ----------------------------------------------------------------------------
+// Get Machine by MID
 export const getMachine = async (req, res) => {
   const { mid } = req.params;
   const machine = await Machine.findOne({ mid });
-
   if (!machine) throw new NotFoundError("Machine not found");
 
-  res.status(StatusCodes.OK).json({ result: { mid } });
+  res.status(StatusCodes.OK).json({
+    result: {
+      mid: machine.mid,
+      mstatus: machine.mstatus,
+      location: machine.location,
+      ipAddress: machine.ipAddress
+    }
+  });
 };
 
 // ----------------------------------------------------------------------------
+// Update IP Address (admin or machine itself)
 export const updateIpAddress = async (req, res) => {
   const { mid } = req.params;
   const { ipAddress } = req.body;
 
-  const machine = await Machine.findOneAndUpdate({ mid }, { ipAddress });
+  const updated = await Machine.findOneAndUpdate({ mid }, { ipAddress }, { new: true });
+  if (!updated) throw new NotFoundError("Machine not found");
 
-  if (!machine) throw new NotFoundError("Machine not found");
-
-  res.status(StatusCodes.OK).json({ result: "success" });
+  res.status(StatusCodes.OK).json({ result: { ipAddress: updated.ipAddress } });
 };
 
 // ----------------------------------------------------------------------------
+// Get IP Address
 export const getIpAddress = async (req, res) => {
   const { mid } = req.params;
   const machine = await Machine.findOne({ mid });
-
   if (!machine) throw new NotFoundError("Machine not found");
 
   res.status(StatusCodes.OK).json({ result: machine.ipAddress });
 };
 
 // ----------------------------------------------------------------------------
-
+// Start machine after scanning OTP (machineAuth protected)
 export const startMachine = async (req, res) => {
   const { orderOtp, mid } = req.body;
+  if (!orderOtp || !mid) throw new BadRequestError("Enter OTP and machine ID");
 
-  if (!orderOtp || !mid) throw new BadRequestError("Enter all values");
+  const machine = await Machine.findOne({ mid });
+  if (!machine) throw new NotFoundError("Machine not found");
 
-  const order = await Order.findOne({ orderOtp, machineId: mid })
-    // .populate({
-    //   path: "uid",
-    //   match: {
-    //     phone,
-    //   },
-    // })
-    .sort({ created_at: -1 });
+  const order = await Order.findOne({ orderOtp, machineId: machine._id })
+    .sort({ createdAt: -1 });
 
-  if (!order) throw new BadRequestError("Invalid OTP");
-  if (!order.uid) throw new BadRequestError("Invalid OTP");
-  if (order.orderOtp == "") throw new BadRequestError("Invalid OTP");
-  if (order.ostatus !== "READY") throw new BadRequestError("Invalid OTP");
-  if (order.orderCompleted) throw new BadRequestError("Invalid OTP");
+  if (
+    !order ||
+    !order.uid ||
+    order.orderOtp === "" ||
+    order.orderStatus !== "READY" ||
+    order.orderCompleted
+  ) {
+    throw new BadRequestError("Invalid OTP or order status");
+  }
 
-  order.ostatus = "PREPARING";
+  order.orderStatus = "PREPARING";
   order.orderOtp = "";
   order.orderCompleted = true;
   await order.save();
@@ -119,17 +102,19 @@ export const startMachine = async (req, res) => {
   res.status(StatusCodes.OK).json({ result: { order } });
 };
 
-// ---------------------------------------------------------------------------
+// ----------------------------------------------------------------------------
+// Mark order as completed after plate dispensed
 export const plateDispensed = async (req, res) => {
   const { oid } = req.params;
+  if (!mongoose.isValidObjectId(oid)) throw new BadRequestError("Invalid Order ID");
 
-  await Order.findOneAndUpdate(
-    { _id: oid },
-    { ostatus: "COMPLETED" },
-    { new: true } //returns the updated data
+  const updatedOrder = await Order.findByIdAndUpdate(
+    oid,
+    { orderStatus: "COMPLETED" },
+    { new: true }
   );
 
-  res.status(StatusCodes.OK).json({ result: "successful" });
-};
+  if (!updatedOrder) throw new NotFoundError("Order not found");
 
-// ----------------------------------------------------------------------------
+  res.status(StatusCodes.OK).json({ result: "Plate marked as dispensed" });
+};

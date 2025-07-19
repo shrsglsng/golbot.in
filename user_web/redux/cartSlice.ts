@@ -1,47 +1,21 @@
-import { createSlice } from "@reduxjs/toolkit";
+import { createSlice, PayloadAction } from "@reduxjs/toolkit";
 import { AppState } from "./store";
 import { HYDRATE } from "next-redux-wrapper";
 import { ItemModel } from "../models/itemModel";
 
-// Initial state
-const initialState: { items: ItemModel[] } = {
-  items: [
-    {
-      id: "GOL",
-      name: "Golgappa",
-      desc: "Tasty puris, baked potatos, peas and onions.",
-      imgUrl: "/singlePuri.png",
-      price: 30,
-      quantity: 0,
-      gst: 1.5,
-    },
-    {
-      id: "PAN",
-      name: "Pani Puri",
-      desc: "Tasty puris, baked potatos, peas onions and sev.",
-      imgUrl: "/paniPuri.png",
-      price: 30,
-      quantity: 0,
-      gst: 1.5,
-    },
-    {
-      id: "PWO",
-      name: "Pani Puri without Onions",
-      desc: "Tasty puris, baked potatos, peas and sev.",
-      imgUrl: "/paniPuri.png",
-      price: 30,
-      quantity: 0,
-      gst: 1.5,
-    },
-  ],
+// Initial state — no hardcoded items
+const initialState: { items: (ItemModel & { quantity: number })[] } = {
+  items: [],
 };
-// Actual Slice
+
 export const cartSlice = createSlice({
   name: "cartSlice",
   initialState,
   reducers: {
-    updateCart: (state, action) => {
-      // console.log(action.payload);
+    updateCart: (
+      state,
+      action: PayloadAction<{ item: ItemModel & { quantity: number }; index: number }>
+    ) => {
       state.items = [
         ...state.items.slice(0, action.payload.index),
         action.payload.item,
@@ -49,29 +23,28 @@ export const cartSlice = createSlice({
       ];
     },
 
-    setItems: (state, action) => {
-      // console.log(action.payload);
+    setItems: (
+      state,
+      action: PayloadAction<{ allItems: (ItemModel & { quantity: number })[] }>
+    ) => {
       state.items = [...action.payload.allItems];
     },
+  },
 
-    // TODO: fix this
-    // Special reducer for hydrating the state. Special case for next-redux-wrapper
-    extraReducers: {
-      // @ts-ignore
-      [HYDRATE]: (state, action) => {
-        return (state = {
-          ...state,
-          ...action.payload.cartSlice,
-        });
-      },
-    },
+  extraReducers: (builder) => {
+    builder.addCase(HYDRATE, (state, action: any) => {
+      return {
+        ...state,
+        ...action.payload.cartSlice,
+      };
+    });
   },
 });
 
+// Actions
 export const { updateCart, setItems } = cartSlice.actions;
 
+// Selector
 export const selectCart = (state: AppState) => state.cartSlice.items;
-// export const selectAdditionalFile = (state: AppState) =>
-//   state.cartSlice.additonalFile;
 
 export default cartSlice.reducer;

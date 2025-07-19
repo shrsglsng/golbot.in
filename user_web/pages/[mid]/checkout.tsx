@@ -1,19 +1,20 @@
 import Image from "next/image";
 import ArrowBackIosNewIcon from "@mui/icons-material/ArrowBackIosNew";
 import { PulseLoader } from "react-spinners";
-
 import CloseIcon from "@mui/icons-material/Close";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import { useSelector, useDispatch } from "react-redux";
 import { selectCart, updateCart } from "../../redux/cartSlice";
-import { ItemModel } from "../../models/itemModel";
 import { placeOrder } from "../../services/order";
 import { updateOrder } from "../../redux/orderSlice";
 import { GetServerSideProps } from "next/types";
 import Navbar from "../../shared/navbar";
+import { ItemModel as BaseItemModel } from "../../models/itemModel";
 
-function ItemCard({ item, index }: { item: ItemModel; index: number }) {
+type ExtendedItemModel = BaseItemModel & { quantity: number };
+
+function ItemCard({ item, index }: Readonly<{ item: ExtendedItemModel; index: number }>) {
   const dispatch = useDispatch();
 
   const handleButtonOnClick = (action: "+" | "-") => {
@@ -28,7 +29,7 @@ function ItemCard({ item, index }: { item: ItemModel; index: number }) {
     <div className="h-36 py-5 w-full flex">
       <div className="flex-grow-[0.35] basis-0 flex flex-col justify-center">
         <div className="relative h-full w-full">
-          <Image src={"/paniPuri.png"} alt="" fill className="rounded-md" />
+          <Image src="/paniPuri.png" alt={item.name} fill className="rounded-md" />
         </div>
       </div>
       <div className="flex-grow-[0.65] basis-0 pl-5 flex flex-col">
@@ -57,32 +58,84 @@ function CheckoutPage() {
   const dispatch = useDispatch();
   const { mid } = router.query;
 
-  const [isConBtnLoading, setIsConBtnLoading] = useState<boolean>(false);
+  const [isConBtnLoading, setIsConBtnLoading] = useState(false);
   const [amount, setAmount] = useState({ price: 0, gst: 0, total: 0 });
 
   const handleConfirmBtnClick = async () => {
     setIsConBtnLoading(true);
 
     try {
-      const order = await placeOrder(items, mid?.toString() ?? "");
-      if (!order?.order?.id) throw new Error("Invalid Razorpay order");
+      // Step 1: Create DB Order
+      const result = await placeOrder(items, mid?.toString() ?? "");
+      const dbOrder = result?.order;
 
-      dispatch(updateOrder({ order: order.order }));
+      if (!dbOrder?.oid) throw new Error("Failed to create order");
 
+      dispatch(updateOrder({ order: dbOrder }));
+
+      // Step 2: Create Razorpay Order
+      const razorRes = await fetch(
+        `${process.env.NEXT_PUBLIC_SERVER_URL}/payment/create-order`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${localStorage.getItem("Token")}`,
+          },
+          body: JSON.stringify({ orderId: dbOrder.oid }),
+        }
+      );
+
+      const razorData = await razorRes.json();
+      console.log("Razorpay order response:", razorData);
+
+      if (razorRes.status !== 201 || !razorData?.result?.orderId) {
+        throw new Error("Failed to create Razorpay order");
+      }
+
+      const { orderId, amount, currency } = razorData.result;
+
+      // Step 3: Open Razorpay Checkout
       const razorpay = new (window as any).Razorpay({
         key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
-        amount: order.order.amount, // in paisa
-        currency: "INR",
+        amount,
+        currency,
         name: "Your Brand",
         description: "Order Payment",
-        order_id: order.order.id,
-        handler: function (response: any) {
-          const txnId = response.razorpay_order_id;
-          router.push(`/${mid}/payment/${txnId}/success`);
+        order_id: orderId,
+        handler: async function (response: any) {
+          const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = response;
+
+          try {
+            const verifyRes = await fetch(`${process.env.NEXT_PUBLIC_SERVER_URL}/payment/verify`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${localStorage.getItem("Token")}`,
+              },
+              body: JSON.stringify({
+                razorpay_order_id,
+                razorpay_payment_id,
+                razorpay_signature,
+              }),
+            });
+
+            const verifyData = await verifyRes.json();
+
+            if (verifyRes.status === 200 && verifyData.success) {
+              router.push(`/${mid}/payment/${razorpay_order_id}/success`);
+            } else {
+              alert("Payment verification failed");
+              router.push(`/${mid}/payment/${razorpay_order_id}/failed`);
+            }
+          } catch (err) {
+            console.error("❌ Verification error:", err);
+            router.push(`/${mid}/payment/${razorpay_order_id}/failed`);
+          }
         },
         modal: {
           ondismiss: function () {
-            router.push(`/${mid}/payment/${order.order.id}/failed`);
+            router.push(`/${mid}/payment/${orderId}/failed`);
           },
         },
         prefill: {
@@ -104,11 +157,12 @@ function CheckoutPage() {
     }
   };
 
+
   useEffect(() => {
     let tmpPrice = 0;
     let tmpGst = 0;
 
-    items.forEach((ele: ItemModel) => {
+    items.forEach((ele) => {
       const price = ele.price ?? 0;
       const gst = ele.gst ?? 0;
       tmpPrice += price * ele.quantity;
@@ -144,7 +198,7 @@ function CheckoutPage() {
           </div>
           <div className="h-5" />
           <div className="w-full flex flex-col">
-            {items.map((item: ItemModel, i: number) => item.quantity > 0 && <ItemCard key={i} item={item} index={i} />)}
+            {items.map((item, i) => item.quantity > 0 && <ItemCard key={item.id ?? i} item={item} index={i} />)}
           </div>
           <div className={`w-full h-40 grid place-items-center ${amount.total === 0 ? "block" : "hidden"}`}>
             <div className="text-lg text-gray-500">Your Cart is Empty...</div>

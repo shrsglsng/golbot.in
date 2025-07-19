@@ -172,28 +172,32 @@ export default function Home({ allItems }: Readonly<{ allItems: ExtendedItemMode
 }
 
 export const getServerSideProps: GetServerSideProps = async (context) => {
-  const { mid } = context.query
+  const { mid } = context.params as { mid: string };
 
-  if (!process.env.NEXT_PUBLIC_SERVER_URL) throw new Error("Server Url Not Set")
-
-  const machineRes = await fetch(
-    `${process.env.NEXT_PUBLIC_SERVER_URL}/machine/getMachine/${mid}`
-  )
-
-  if (machineRes.status === 404) {
-    return { notFound: true }
+  if (!process.env.NEXT_PUBLIC_SERVER_URL) {
+    throw new Error("Server Url Not Set");
   }
 
-  const itemsRes = await fetch(`${process.env.NEXT_PUBLIC_SERVER_URL}/getAllItems`)
-  const rawItems = (await itemsRes.json())["items"]
+  const machineRes = await fetch(
+    `${process.env.NEXT_PUBLIC_SERVER_URL}/machine/${mid}`
+  );
+
+  if (machineRes.status === 404) {
+    return { notFound: true };
+  }
+
+  const itemsRes = await fetch(`${process.env.NEXT_PUBLIC_SERVER_URL}/getAllItems`);
+  const json = await itemsRes.json();
+  const rawItems = json.result?.items ?? [];
 
   const allItems: ExtendedItemModel[] = rawItems.map((item: BaseItemModel) => ({
     ...item,
-    availableQty: item.quantity,
+    availableQty: item.qtyLeft ?? 0,
     quantity: 0,
-  }))
+  }));
 
   return {
     props: { allItems },
-  }
-}
+  };
+};
+

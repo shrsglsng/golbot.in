@@ -1,30 +1,27 @@
 import express from "express";
-import admin from "../middlewares/admin.js";
 import {
-  getIpAddress,
-  getMachine,
-  createMachine,
   machineLogin,
+  getMachine,
+  getIpAddress,
   updateIpAddress,
-} from "../controllers/machineController.js";
-import {
-  plateDispensed,
   startMachine,
+  plateDispensed
 } from "../controllers/machineController.js";
+import admin from "../middlewares/admin.js";
 import machineAuth from "../middlewares/machineAuth.js";
 
 const router = express.Router();
 
+// Machine login
 router.post("/login", machineLogin);
 
-router.post("/create", admin, createMachine);
-router.get("/getMachine/:mid", getMachine);
+// CRUD & IP management
+router.get("/:mid", getMachine);
+router.get("/:mid/ip", getIpAddress);
+router.post("/:mid/ip", updateIpAddress);
 
-router.get("/getIpaddress/:mid", getIpAddress);
-router.post("/updateIpAddress/:mid", updateIpAddress);
-
-// TODO: add machineAUth middleware (there som prob with jwt.verify)
-router.post("/startmachine", startMachine);
-router.post("/plateDispensed/:oid", plateDispensed);
+// Protected machine operations
+router.post("/start", machineAuth, startMachine);
+router.post("/plate-dispensed/:oid", machineAuth, plateDispensed);
 
 export default router;

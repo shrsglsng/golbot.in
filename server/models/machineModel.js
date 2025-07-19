@@ -1,21 +1,19 @@
 import mongoose from "mongoose";
-import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
 
-const machineSchema = new mongoose.Schema(
-  {
-    mid: { type: String },
-    mstatus: {
-      type: String,
-      enum: ["CONNECTED", "DISCONNECTED"],
-      default: "DISCONNECTED",
-    },
-    location: { type: String },
-    password: { type: String },
-    ipAddress: { type: String },
+const machineSchema = new mongoose.Schema({
+  mid: { type: String, required: true, unique: true },
+  mstatus: {
+    type: String,
+    enum: ["CONNECTED", "DISCONNECTED"],
+    default: "DISCONNECTED",
   },
-  { timestamps: true }
-);
+  location: String,
+  password: String,
+  ipAddress: String,
+  lastPingedAt: Date,
+}, { timestamps: true });
 
 machineSchema.pre("save", async function () {
   if (this.password) {
@@ -25,10 +23,7 @@ machineSchema.pre("save", async function () {
 });
 
 machineSchema.methods.createJwt = function () {
-  var payload = { mid: this.mid };
-  return jwt.sign(payload, process.env.EXPAPP_JWT_SECRET, {
-    expiresIn: process.env.EXPAPP_JWT_LIFETIME,
-  });
+  return jwt.sign({ mid: this.mid }, process.env.EXPAPP_JWT_SECRET);
 };
 
 machineSchema.methods.comparePassword = async function (candidatePassword) {

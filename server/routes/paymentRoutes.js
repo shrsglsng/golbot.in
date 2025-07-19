@@ -1,20 +1,18 @@
-import express from "express"
-// import { getSessionId } from "../controllers/paymentController.js";
-import auth from "../middlewares/auth.js"
+import express from "express";
 import {
-  helloResponse,
-  createOrder,
-  verifyPayment,
+  createRazorpayOrder,
+  verifyRazorpayPayment,
   getPaymentStatus,
   getAllPayments
-} from "../controllers/paymentController.js"
+} from "../controllers/paymentController.js";
+import auth from "../middlewares/auth.js";
 
-const router = express.Router()
+const router = express.Router();
 
-router.get("/hello", auth, helloResponse)
-router.post("/create-order", auth, createOrder)
-router.post("/verify", auth, verifyPayment)
-router.get("/payment/:orderId", auth, getPaymentStatus)
-router.get("/payments", auth, getAllPayments)
+// Razorpay
+router.post("/create-order", auth, createRazorpayOrder);
+router.post("/verify", auth, verifyRazorpayPayment);
+router.get("/:orderId", auth, getPaymentStatus);
+router.get("/", auth, getAllPayments);
 
-export default router
+export default router;

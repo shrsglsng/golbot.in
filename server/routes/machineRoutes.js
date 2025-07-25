@@ -5,9 +5,9 @@ import {
   getIpAddress,
   updateIpAddress,
   startMachine,
+  markOrderReadyForPickup,
   plateDispensed
 } from "../controllers/machineController.js";
-import admin from "../middlewares/admin.js";
 import machineAuth from "../middlewares/machineAuth.js";
 import validateMobileApp from "../middlewares/mobileAuth.js";
 
@@ -24,6 +24,7 @@ router.post("/:mid/ip", updateIpAddress);
 // Protected machine operations - with mobile app validation
 router.post("/startmachine", validateMobileApp, machineAuth, startMachine);
 router.post("/start", validateMobileApp, machineAuth, startMachine); // Keep both for compatibility
-router.post("/plate-dispensed/:oid", validateMobileApp, machineAuth, plateDispensed);
+router.post("/ready-for-pickup", validateMobileApp, machineAuth, markOrderReadyForPickup);
+router.post("/plate-dispensed", validateMobileApp, machineAuth, plateDispensed);
 
 export default router;

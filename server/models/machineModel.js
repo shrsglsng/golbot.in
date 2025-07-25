@@ -6,7 +6,7 @@ const machineSchema = new mongoose.Schema({
   mid: { type: String, required: true, unique: true },
   mstatus: {
     type: String,
-    enum: ["CONNECTED", "DISCONNECTED", "PREPARING"],
+    enum: ["CONNECTED", "DISCONNECTED", "PREPARING", "READY_FOR_PICKUP"],
     default: "DISCONNECTED",
   },
   isActive: { type: Boolean, default: true },

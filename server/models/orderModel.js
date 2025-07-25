@@ -1,10 +1,11 @@
 import mongoose from "mongoose";
+import Counter from "./counterModel.js";
 
 // Schema for order status history tracking
 const statusHistorySchema = new mongoose.Schema({
   status: {
     type: String,
-    enum: ["PENDING", "PAID", "READY", "PREPARING", "COMPLETED", "CANCELLED"],
+    enum: ["PENDING", "PAID", "OTP_VERIFIED", "PREPARING", "READY_FOR_PICKUP", "COMPLETED", "CANCELLED"],
     required: true
   },
   changedAt: { type: Date, default: Date.now },
@@ -23,13 +24,18 @@ const orderSchema = new mongoose.Schema({
   },
   orderStatus: {
     type: String,
-    enum: ["PENDING", "PAID", "READY", "PREPARING", "COMPLETED", "CANCELLED"],
+    enum: ["PENDING", "PAID", "OTP_VERIFIED", "PREPARING", "READY_FOR_PICKUP", "COMPLETED", "CANCELLED"],
     default: "PENDING",
   },
   orderCompleted: { type: Boolean, default: false },
   // Order OTP for pickup
   orderOtp: { type: String },
+  // Order counter for progress tracking (starts from 0)
+  orderCounter: { type: Number, default: 0 },
   paidAt: { type: Date },
+  otpVerifiedAt: { type: Date },
+  preparingStartedAt: { type: Date },
+  readyForPickupAt: { type: Date },
   // Status history tracking
   statusHistory: [statusHistorySchema],
   // Additional tracking fields
@@ -60,16 +66,27 @@ orderSchema.pre('save', function(next) {
 });
 
 // Method to update status with history tracking
-orderSchema.methods.updateStatus = function(newStatus, changedBy = 'system', reason = '', metadata = {}) {
+orderSchema.methods.updateStatus = async function(newStatus, changedBy = 'system', reason = '', metadata = {}) {
   this._statusChangeReason = reason;
   this._statusChangedBy = changedBy;
   this._statusChangeMetadata = metadata;
   
   this.orderStatus = newStatus;
   
+  // Assign global serial number when payment is completed (only once)
+  if (newStatus === 'PAID' && this.orderCounter === 0) {
+    this.orderCounter = await Counter.getNextSequence('orderSerial');
+  }
+  
   // Add specific timestamps for important status changes
   if (newStatus === 'PAID') {
     this.paidAt = new Date();
+  } else if (newStatus === 'OTP_VERIFIED') {
+    this.otpVerifiedAt = new Date();
+  } else if (newStatus === 'PREPARING') {
+    this.preparingStartedAt = new Date();
+  } else if (newStatus === 'READY_FOR_PICKUP') {
+    this.readyForPickupAt = new Date();
   } else if (newStatus === 'COMPLETED') {
     this.actualCompletionTime = new Date();
     this.orderCompleted = true;

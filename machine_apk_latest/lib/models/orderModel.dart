@@ -6,6 +6,7 @@ class Order {
   String? machineId;
   String? ostatus;
   String? orderOtp;
+  int? orderCounter;
   String? createdAt;
   String? updatedAt;
 
@@ -17,6 +18,7 @@ class Order {
     this.machineId,
     this.ostatus,
     this.orderOtp,
+    this.orderCounter,
     this.createdAt,
     this.updatedAt,
   });
@@ -31,6 +33,7 @@ class Order {
     machineId = json['machineId'];
     ostatus = json['ostatus'];
     orderOtp = json['orderOtp'];
+    orderCounter = json['orderCounter'] ?? 0;
     createdAt = json['createdAt'];
     updatedAt = json['updatedAt'];
   }
@@ -48,6 +51,7 @@ class Order {
     data['machineId'] = this.machineId;
     data['ostatus'] = this.ostatus;
     data['orderOtp'] = this.orderOtp;
+    data['orderCounter'] = this.orderCounter;
     data['createdAt'] = this.createdAt;
     data['updatedAt'] = this.updatedAt;
     return data;

@@ -6,7 +6,8 @@ import { useSelector, useDispatch } from "react-redux"
 import { selectOrder, clearOrder } from "../../redux/orderSlice"
 import { selectCart, clearCart } from "../../redux/cartSlice"
 import { ItemModel } from "../../models/itemModel"
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
+import { getLatestOrder } from "../../services/order"
 
 function ItemRow({
   itemName,
@@ -42,25 +43,18 @@ function ReceiptPage() {
   const order = useSelector(selectOrder)
   const items = useSelector(selectCart)
 
-  useEffect(() => {
-    // If no order data available, redirect to main page
-    if (!order && (!items || items.length === 0)) {
-      router.replace(`/${router.query.mid}`)
-      return
-    }
 
-    // Clear cart and order from Redux store since order is complete
+
+  // Handler for Go to Home button
+  const handleGoHome = () => {
     dispatch(clearCart())
-    // Reset order to initial state
     dispatch(clearOrder({}))
-    
-    // Auto-redirect to main page after 30 seconds with success notification
-    const timeout = setTimeout(() => {
-      router.replace(`/${router.query.mid}?orderComplete=true`)
-    }, 30000)
+    router.replace(`/${router.query.mid}`)
+  }
 
-    return () => clearTimeout(timeout)
-  }, [router, dispatch, order, items])
+  if (!order) {
+    return null
+  }
 
   return (
     <>
@@ -70,7 +64,6 @@ function ReceiptPage() {
       <div className="w-full grid place-items-center">
         <div className="w-full md:w-1/2 lg:w-1/4 h-screen p-5 flex flex-col items-center">
           <div className="h-20" />
-          
           {/* Success Header */}
           <div className="w-full text-center mb-6">
             <div className="text-green-500 text-4xl mb-2">✅</div>
@@ -81,7 +74,6 @@ function ReceiptPage() {
               Thank you for your order. Enjoy your meal!
             </div>
           </div>
-          
           {/* Order Receipt */}
           <div className="w-full m-5 border rounded-md flex flex-col bg-white shadow-lg">
             {/* Header */}
@@ -93,7 +85,6 @@ function ReceiptPage() {
                 </div>
               )}
             </div>
-
             {/* Items */}
             {items.map((item: ItemModel) => (
               <div key={item.id || item.name}>
@@ -105,13 +96,11 @@ function ReceiptPage() {
                 />
               </div>
             ))}
-            
             {/* Spacer */}
             <div className="h-3" />
             <div className="w-full grid place-items-center">
               <div className="w-10/12 h-[1px] border-b-2 border-dashed border-gray-500" />
             </div>
-
             {/* Total and taxes */}
             <div className="h-4" />
             <div className="px-3 pl-5 flex justify-between">
@@ -127,7 +116,6 @@ function ReceiptPage() {
                 ₹{order?.amount?.gst ?? 0}
               </div>
             </div>
-
             <div className="h-3" />
             <div className="p-3 pl-5 flex justify-between bg-gray-50">
               <div className="font-bold text-lg">Total : </div>
@@ -136,19 +124,16 @@ function ReceiptPage() {
               </div>
             </div>
           </div>
-
           {/* Action Buttons */}
           <div className="flex gap-4 mt-6">
             <button
-              onClick={() => router.replace(`/${router.query.mid}`)}
+              onClick={handleGoHome}
               className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
             >
-              Order Again
+              Go to Home
             </button>
           </div>
-
           <div className="h-6" />
-          
           {/* Help Section */}
           <div className="text-center">
             <div className="text-sm text-gray-500">

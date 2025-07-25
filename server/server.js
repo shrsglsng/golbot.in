@@ -94,16 +94,24 @@ const corsOptions = {
     if (allowedOrigins && allowedOrigins.includes(origin)) {
       console.log("✅ Origin allowed:", origin);
       return callback(null, true);
-    } else {
-      console.error("❌ CORS Blocked - Origin not in allowed list:", origin);
-      console.error("📋 Allowed origins:", allowedOrigins);
-      return callback(new Error("Not allowed by CORS"));
+    } 
+    
+    // For mobile apps (Flutter web or other), check if they have the mobile API key
+    // This allows mobile apps to pass CORS and then be validated by our mobile auth middleware
+    const isMobileOrigin = origin && !allowedOrigins.some(allowedOrigin => origin.includes(allowedOrigin.replace('http://', '').replace('https://', '')));
+    if (isMobileOrigin) {
+      console.log("🔒 Mobile origin detected, allowing through for API key validation:", origin);
+      return callback(null, true);
     }
+    
+    console.error("❌ CORS Blocked - Origin not in allowed list:", origin);
+    console.error("📋 Allowed origins:", allowedOrigins);
+    return callback(new Error("Not allowed by CORS"));
   },
   credentials: true,
   optionsSuccessStatus: 200,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept']
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'X-Mobile-API-Key']
 };
 
 app.use(cors(corsOptions));

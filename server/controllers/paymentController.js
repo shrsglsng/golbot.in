@@ -261,12 +261,12 @@ export const verifyRazorpayPayment = async (req, res) => {
         };
         await paymentRecord.save({ session });
 
-        // Update order status using the new method
+        // Update order status to READY (ready for pickup) after payment
         const orderToUpdate = await Order.findById(order._id).session(session);
         await orderToUpdate.updateStatus(
-          "PAID",
+          "READY",
           "payment_verified",
-          "Payment verified and completed",
+          "Payment verified and order ready for pickup",
           {
             paymentId: razorpay_payment_id,
             amount: razorOrder.amount / 100
@@ -295,7 +295,7 @@ export const verifyRazorpayPayment = async (req, res) => {
         },
         order: {
           id: order._id,
-          status: "PAID",
+          status: "READY",
           orderOtp: order.orderOtp
         }
       }, "Payment verified successfully");

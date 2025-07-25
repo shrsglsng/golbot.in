@@ -9,19 +9,21 @@ import {
 } from "../controllers/machineController.js";
 import admin from "../middlewares/admin.js";
 import machineAuth from "../middlewares/machineAuth.js";
+import validateMobileApp from "../middlewares/mobileAuth.js";
 
 const router = express.Router();
 
-// Machine login
-router.post("/login", machineLogin);
+// Machine login - with mobile app validation
+router.post("/login", validateMobileApp, machineLogin);
 
 // CRUD & IP management
 router.get("/:mid", getMachine);
 router.get("/:mid/ip", getIpAddress);
 router.post("/:mid/ip", updateIpAddress);
 
-// Protected machine operations
-router.post("/start", machineAuth, startMachine);
-router.post("/plate-dispensed/:oid", machineAuth, plateDispensed);
+// Protected machine operations - with mobile app validation
+router.post("/startmachine", validateMobileApp, machineAuth, startMachine);
+router.post("/start", validateMobileApp, machineAuth, startMachine); // Keep both for compatibility
+router.post("/plate-dispensed/:oid", validateMobileApp, machineAuth, plateDispensed);
 
 export default router;

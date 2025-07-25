@@ -78,7 +78,14 @@ export async function getOrderOtp(): Promise<OrderModel | undefined> {
     });
 
     if (res.status === 200) {
-      return { ...res.data.data.order, oid: res.data.data.order._id };
+      console.log("getOrderOtp response:", res.data);
+      const orderData = res.data.data.order;
+      // Ensure orderOtp is included in the returned order
+      return { 
+        ...orderData, 
+        oid: orderData._id,
+        orderOtp: orderData.orderOtp || res.data.data.orderOtp
+      };
     }
   } catch (error: any) {
     console.error("getOrderOtp error:", error);

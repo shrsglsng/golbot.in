@@ -27,6 +27,10 @@ export const orderSlice = createSlice({
       // console.log(state.order);
     },
 
+    clearOrder: (state) => {
+      state.order = undefined;
+    },
+
     // TODO: fix this
     // Special reducer for hydrating the state. Special case for next-redux-wrapper
     extraReducers: {
@@ -41,7 +45,7 @@ export const orderSlice = createSlice({
   },
 });
 
-export const { updateOrder } = orderSlice.actions;
+export const { updateOrder, clearOrder } = orderSlice.actions;
 
 export const selectOrder = (state: AppState) => state.orderSlice.order;
 

@@ -26,7 +26,22 @@ export const machineLogin = async (req, res) => {
     // Find and authenticate machine
     const machine = await DatabaseUtil.findOne(Machine, { mid }, { throwIfNotFound: true });
     
+    // Debug logging for password comparison
+    logger.info('Password comparison debug', {
+      mid,
+      providedPassword: password,
+      storedPasswordHash: machine.password?.substring(0, 10) + '...',
+      passwordLength: password?.length,
+      hashLength: machine.password?.length
+    });
+    
     const isPasswordValid = await machine.comparePassword(password);
+    
+    logger.info('Password comparison result', {
+      mid,
+      isValid: isPasswordValid
+    });
+    
     if (!isPasswordValid) {
       logger.warn('Machine authentication failed - invalid password', { 
         mid,
@@ -299,18 +314,22 @@ export const startMachine = async (req, res) => {
       userPhone: order.uid.phone?.substring(0, 6) + 'xxxx'
     });
 
-    return ApiResponse.success(res, {
-      order: {
-        orderId: order._id,
-        status: "PREPARING",
-        userPhone: order.uid.phone?.substring(0, 6) + 'xxxx',
-        items: order.items || []
+    // Use specific response format expected by Flutter app
+    return res.status(200).json({
+      result: {
+        order: {
+          orderId: order._id,
+          status: "PREPARING",
+          userPhone: order.uid.phone?.substring(0, 6) + 'xxxx',
+          items: order.items || []
+        },
+        machine: {
+          mid: machine.mid,
+          status: "PREPARING"
+        }
       },
-      machine: {
-        mid: machine.mid,
-        status: "PREPARING"
-      }
-    }, "Machine started successfully");
+      message: "Machine started successfully"
+    });
 
   } catch (error) {
     logger.error('Start machine failed', { 

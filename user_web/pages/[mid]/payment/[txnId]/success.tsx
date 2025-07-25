@@ -9,7 +9,7 @@ export default function PaymentSuccessPage() {
     if (!mid || !txnId) return;
 
     const timeout = setTimeout(() => {
-      router.replace(`/${mid}/preparingOrder?fromPayment=true`);
+      router.replace(`/${mid}/qrPage`);
     }, 2000); // 2 seconds delay
 
     return () => clearTimeout(timeout);
@@ -20,7 +20,7 @@ export default function PaymentSuccessPage() {
       <div className="text-center">
         <h1 className="text-3xl font-bold text-green-600">Payment Successful!</h1>
         <p className="mt-4 text-gray-700">Transaction ID: {txnId}</p>
-        <p className="mt-1 text-sm text-gray-500">Redirecting to order preparation...</p>
+        <p className="mt-1 text-sm text-gray-500">Redirecting to QR code page...</p>
       </div>
     </div>
   );

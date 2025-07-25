@@ -11,6 +11,7 @@ export type OrderModel = {
   };
   ostatus: "PENDING" | "READY" | "PREPARING" | "COMPLETED" | "CANCELED";
   orderOtp?: string;
+  orderCounter?: number;
   orderCompleted: boolean;
   paymentOrderId?: string;
 };

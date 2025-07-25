@@ -18,7 +18,7 @@ function LoginPage() {
     setIsLoading(true);
 
     if (!process.env.NEXT_PUBLIC_SERVER_URL) throw "Server Url Not Set";
-    const url = process.env.NEXT_PUBLIC_SERVER_URL + "/auth/admin/login";
+    const url = process.env.NEXT_PUBLIC_SERVER_URL + "/admin/login";
 
     if (!validator.isEmail(credentials.email)) {
       setCredError((f) => ({ ...f, email: "Enter a valid Email" }));
@@ -35,7 +35,7 @@ function LoginPage() {
       var res = await axios.post(url, { email, password });
 
       if (res.status === 200) {
-        localStorage.setItem("Token", res.data.token);
+        localStorage.setItem("Token", res.data.data.token);
         router.replace("/");
         return;
       }

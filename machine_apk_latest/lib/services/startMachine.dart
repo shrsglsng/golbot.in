@@ -9,7 +9,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 Future<Order?> startMachine(
     String otp, String mid, BuildContext context) async {
   final prefs = await SharedPreferences.getInstance();
-  final token = prefs.getString("token");
+  // Use a dedicated key for machine token
+  final token = prefs.getString("machine_token");
 
   try {
     print('Starting machine with OTP: $otp, MID: $mid');

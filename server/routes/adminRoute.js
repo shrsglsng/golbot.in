@@ -12,7 +12,8 @@ import {
   updateOrderStatus,
   getOrderStatusHistory,
   updatePaymentStatus,
-  getPaymentStatusHistory
+  getPaymentStatusHistory,
+  adminMarkOrderReady
 } from "../controllers/adminController.js";
 
 const router = express.Router();
@@ -40,5 +41,8 @@ router.get("/orders/:orderId/history", admin, getOrderStatusHistory);
 // Payment management with status history
 router.put("/payments/:paymentId/status", admin, updatePaymentStatus);
 router.get("/payments/:paymentId/history", admin, getPaymentStatusHistory);
+
+// Manual order control (for testing/admin override)
+router.put("/orders/:orderId/mark-ready", admin, adminMarkOrderReady);
 
 export default router;

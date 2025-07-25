@@ -394,14 +394,6 @@ export const loginAdmin = async (req, res) => {
       email: email.toLowerCase() 
     }, { throwIfNotFound: true });
 
-    if (!admin.isActive) {
-      logger.warn('Login attempt on inactive admin account', { 
-        adminId: admin._id,
-        email: email.substring(0, 5) + '***' 
-      });
-      throw new UnauthenticatedError("Account is disabled");
-    }
-
     const isPasswordValid = await admin.comparePassword(password);
     if (!isPasswordValid) {
       logger.warn('Admin login failed - invalid password', { 
@@ -449,11 +441,11 @@ export const loginAdmin = async (req, res) => {
 // Get all admins with pagination and filters
 export const getAllAdmins = async (req, res) => {
   try {
-    const { email, location, page = 1, isActive } = req.query;
+    const { email, location, page = 1 } = req.query;
 
     logger.info('Get all admins request', { 
       requestorId: req.user?.uid,
-      filters: { email, location, isActive },
+      filters: { email, location },
       page: parseInt(page) 
     });
 
@@ -471,10 +463,6 @@ export const getAllAdmins = async (req, res) => {
     
     if (location) {
       query.location = { $regex: location, $options: "i" };
-    }
-    
-    if (isActive !== undefined) {
-      query.isActive = isActive === 'true';
     }
 
     const [admins, total] = await Promise.all([
@@ -502,7 +490,6 @@ export const getAllAdmins = async (req, res) => {
         email: admin.email,
         name: admin.name,
         location: admin.location,
-        isActive: admin.isActive,
         createdAt: admin.createdAt,
         lastLoginAt: admin.lastLoginAt
       })),
@@ -564,12 +551,12 @@ export const registerMachine = async (req, res) => {
     }
 
     const machineData = {
-      mid: mid.toUpperCase(),
+      mid: mid,
       password, // Will be hashed by the model
       location: Validator.sanitizeInput(location),
       ipAddress,
       name: name ? Validator.sanitizeInput(name) : '',
-      mstatus: "IDLE",
+      mstatus: "DISCONNECTED",
       isActive: true,
       createdBy: req.user?.uid,
       createdAt: new Date()
@@ -893,6 +880,86 @@ export const updatePaymentStatus = async (req, res) => {
     logger.error('Update payment status failed', { 
       error: error.message,
       paymentId: req.params?.paymentId,
+      adminId: req.user?.uid 
+    });
+    throw error;
+  }
+};
+
+// ----------------------------------------------------------------------------
+// Admin Manual Order Ready (for testing and manual control)
+export const adminMarkOrderReady = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+
+    logger.info('Admin manual order ready request', { 
+      orderId,
+      adminId: req.user?.uid 
+    });
+
+    // Validate input
+    Validator.validateObjectId(orderId, 'Order ID');
+
+    // Find the order
+    const order = await DatabaseUtil.findOne(Order, { 
+      _id: orderId,
+      orderStatus: "PREPARING",
+      orderCompleted: false
+    }, { 
+      throwIfNotFound: true,
+      populate: [
+        { path: 'uid', select: 'phone' },
+        { path: 'machineId', select: 'mid name location' }
+      ]
+    });
+
+    // Use transaction to update order status
+    await DatabaseUtil.transaction(async (session) => {
+      // Update order status to ready for pickup
+      const orderForUpdate = await Order.findById(order._id).session(session);
+      await orderForUpdate.updateStatus(
+        "READY_FOR_PICKUP",
+        "admin",
+        "Order manually marked ready by admin",
+        {
+          adminId: req.user?.uid,
+          machineId: order.machineId?.mid,
+          machineName: order.machineId?.name,
+          location: order.machineId?.location,
+          readyAt: new Date()
+        }
+      );
+      
+      await orderForUpdate.save({ session });
+
+      // Update machine status if machine exists
+      if (order.machineId) {
+        await DatabaseUtil.updateById(Machine, order.machineId._id, {
+          mstatus: "READY_FOR_PICKUP",
+          currentOrderId: order._id,
+          lastPreparationCompletedAt: new Date()
+        }, { session });
+      }
+    });
+
+    logger.info('Order manually marked ready by admin', { 
+      orderId: order._id,
+      adminId: req.user?.uid,
+      machineId: order.machineId?.mid,
+      userId: order.uid._id 
+    });
+
+    return ApiResponse.success(res, {
+      orderId: order._id,
+      status: "READY_FOR_PICKUP",
+      userPhone: order.uid.phone?.substring(0, 6) + 'xxxx',
+      machine: order.machineId?.mid
+    }, "Order manually marked ready for pickup");
+
+  } catch (error) {
+    logger.error('Admin mark order ready failed', { 
+      error: error.message,
+      orderId: req.params?.orderId,
       adminId: req.user?.uid 
     });
     throw error;

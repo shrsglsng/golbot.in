@@ -1,5 +1,11 @@
+// Helper to get order status from either ostatus or orderStatus
+function getOrderStatus(order: { ostatus?: string; orderStatus?: string }): string | undefined {
+  return order.ostatus ?? order.orderStatus;
+}
 import Head from "next/head"
 import { useEffect, useState } from "react"
+import { getLatestOrder } from "../../services/order"
+import { selectOrder, updateOrder } from "../../redux/orderSlice"
 import Image from "next/image"
 import { useRouter } from "next/router"
 import { useSelector, useDispatch } from "react-redux"
@@ -94,9 +100,27 @@ export default function Home({ allItems }: Readonly<{ allItems: ExtendedItemMode
   const router = useRouter()
   const dispatch = useDispatch()
   const items = useSelector(selectCart) as ExtendedItemModel[]
+  const reduxOrder = useSelector(selectOrder)
   const { mid } = router.query
   const [total, setTotal] = useState(0)
   const [showOrderStrip, setShowOrderStrip] = useState(false)
+  const [pendingOrder, setPendingOrder] = useState<any>(null)
+  const [loadingOrder, setLoadingOrder] = useState(true)
+  // Fetch latest order on mount
+  useEffect(() => {
+    setLoadingOrder(true)
+    getLatestOrder().then((order) => {
+      console.log("Latest Order:", order)
+      const status = getOrderStatus(order || {});
+      if (order && ["PAID", "OTP_VERIFIED", "PREPARING", "READY_FOR_PICKUP"].includes(status || "")) {
+        setPendingOrder(order)
+        dispatch(updateOrder({ order }))
+      } else {
+        setPendingOrder(null)
+      }
+      setLoadingOrder(false)
+    })
+  }, [dispatch])
 
   useEffect(() => {
     dispatch(setItems({ allItems }))
@@ -126,6 +150,46 @@ export default function Home({ allItems }: Readonly<{ allItems: ExtendedItemMode
     }
   }, [router.asPath])
 
+  // Show loading while checking for pending order
+  if (loadingOrder) {
+    return (
+      <div className="w-full h-screen flex items-center justify-center">
+        <div className="text-lg text-gray-500">Checking your order status...</div>
+      </div>
+    )
+  }
+
+  // If a pending order exists, block new orders and show Resume Order button
+  if (pendingOrder) {
+    const status = getOrderStatus(pendingOrder);
+    let resumePath = `/${mid}`;
+    if (status === "PAID" && pendingOrder.orderOtp) {
+      resumePath = `/${mid}/qrPage`;
+    } else if (status === "OTP_VERIFIED" || status === "PREPARING") {
+      resumePath = `/${mid}/preparingOrder`;
+    } else if (status === "READY_FOR_PICKUP") {
+      resumePath = `/${mid}/preparingOrder`;
+    }
+    return (
+      <div className="w-full h-screen flex flex-col items-center justify-center bg-gray-50">
+        <Navbar />
+        <div className="flex flex-1 w-full items-center justify-center">
+          <div className="bg-white shadow-lg rounded-xl px-10 py-12 flex flex-col items-center max-w-md w-full border border-gray-200">
+            <div className="text-2xl font-bold mb-2 text-gray-800 text-center">You have a pending order</div>
+            <div className="mb-8 text-gray-600 text-center text-base">Please complete your current order before starting a new one.</div>
+            <button
+              onClick={() => router.push(resumePath)}
+              className="px-8 py-3 bg-blue-600 text-white rounded-md text-lg font-semibold shadow hover:bg-blue-700 transition"
+            >
+              Resume Order
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // No pending order, show normal menu
   return (
     <>
       <Head>
@@ -151,7 +215,6 @@ export default function Home({ allItems }: Readonly<{ allItems: ExtendedItemMode
             </div>
             <div className="w-2 h-2 bg-white rounded-full animate-bounce animation-delay-300"></div>
           </div>
-          
           {/* Progress bar animation */}
           <div className="mt-2 w-full bg-green-700 bg-opacity-30 rounded-full h-1">
             <div className="bg-white h-1 rounded-full animate-pulse"></div>

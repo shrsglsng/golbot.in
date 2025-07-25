@@ -19,30 +19,20 @@ function QRPage() {
 
   // QR Content validation function
   const validateAndGenerateQR = (order: any) => {
-    console.log("🔍 QR Generation Debug:");
-    console.log("Raw order object:", order);
-    console.log("Order OTP:", order?.orderOtp);
-    console.log("Order ID:", order?.oid);
-    console.log("Order status:", order?.orderStatus);
-
     if (!order) {
-      console.error("❌ No order object");
       return null;
     }
 
-    // Check for OTP in different possible fields
-    const otp = order.orderOtp || order.otp || order.OTP;
-    console.log("Checking OTP fields:", { orderOtp: order.orderOtp, otp: order.otp, OTP: order.OTP });
+    // Check for OTP
+    const otp = order.orderOtp;
 
     if (!otp) {
-      console.error("❌ Missing orderOtp in all possible fields");
       return null;
     }
 
     // Convert to string and validate length
     const otpString = String(otp);
     if (otpString.length < 4 || otpString.length > 6) {
-      console.error("❌ Invalid OTP length:", otpString, "Length:", otpString.length);
       return null;
     }
 
@@ -52,9 +42,6 @@ function QRPage() {
       timestamp: Date.now()
     };
 
-    const qrString = JSON.stringify(qrContent);
-    console.log("✅ Generated QR Content:", qrString);
-    
     return qrContent;
   }
 
@@ -70,7 +57,6 @@ function QRPage() {
         const orderRes = await getOrderOtp()
         
         if (!orderRes?.orderOtp) {
-          console.error("❌ Order validation failed:", orderRes);
           setError("No valid order found. Please place a new order.");
           setTimeout(() => {
             router.replace(`/${mid}`)
@@ -78,7 +64,6 @@ function QRPage() {
           return
         }
 
-        console.log("✅ Order retrieved successfully:", orderRes);
         dispatch(updateOrder({ order: orderRes }))
         
         // Start polling for order status
@@ -92,14 +77,13 @@ function QRPage() {
               router.replace(`/${mid}/preparingOrder`)
             }
           } catch (error) {
-            console.error('Error checking order status:', error)
+            // Silently continue polling on error
           }
         }, 3000) // Check every 3 seconds
 
         setPollingInterval(intervalId)
         
       } catch (error: any) {
-        console.error('Error initializing QR page:', error)
         if (error.message === 'AUTHENTICATION_REQUIRED') {
           router.replace(`/${mid}`)
         } else {
@@ -136,7 +120,7 @@ function QRPage() {
               router.replace(`/${mid}/preparingOrder`)
             }
           } catch (error) {
-            console.error('Error checking order status:', error)
+            // Silently continue polling on error
           }
         }, 3000)
         setPollingInterval(intervalId)
@@ -198,45 +182,30 @@ function QRPage() {
           
           {/* Header */}
           <div className="text-center mb-8">
-            <h1 className="text-2xl font-bold text-gray-800 mb-2">Your Order is Ready!</h1>
-            <p className="text-gray-600">Scan the QR code at the vending machine to collect your order</p>
+            <h1 className="text-2xl font-bold text-gray-800 mb-2">Payment Confirmed!</h1>
+            <p className="text-gray-600 mb-4">Scan the QR code at the vending machine to start your order preparation</p>
+            
+            {/* Order Number - Prominent Position */}
+            <div className="bg-blue-50 rounded-lg p-3 inline-block">
+              <div className="text-sm text-gray-600">Order Number</div>
+              <div className="text-xl font-bold text-blue-600">
+                {order?.orderCounter && order.orderCounter > 0 ? `#${order.orderCounter}` : 'Payment Required'}
+              </div>
+            </div>
           </div>
 
           {/* QR Code Section */}
           <div className="w-full md:w-1/2 lg:w-1/4 h-[540px] p-8">
             <div className="w-full h-full p-4 flex flex-col justify-around items-center border border-gray-800 rounded-lg bg-white shadow-lg">
               {(() => {
-                console.log("🔄 QR Generation Check:");
-                console.log("Order exists:", !!order);
-                console.log("Order OTP:", order?.orderOtp);
-                console.log("Full order object:", order);
-                
                 const qrContent = validateAndGenerateQR(order);
-                console.log("QR Content result:", qrContent);
                 
                 if (!qrContent) {
                   return (
                     <div className="text-center">
                       <div className="text-red-500 text-xl mb-2">⚠️</div>
                       <div className="text-red-600 font-medium mb-2">QR Generation Issue</div>
-                      <div className="text-sm text-gray-600 mb-4">Checking order data...</div>
-                      
-                      {/* Debug panel - always show in development */}
-                      {process.env.NODE_ENV === 'development' && (
-                        <div className="text-xs text-left bg-gray-100 p-3 rounded mt-4 max-w-xs">
-                          <div className="font-bold mb-2">🔍 Debug Info:</div>
-                          <div>Has Order: {order ? 'Yes' : 'No'}</div>
-                          <div>orderOtp: {order?.orderOtp || 'Missing'}</div>
-                          <div>otp: {order?.otp || 'Missing'}</div>
-                          <div>OTP: {order?.OTP || 'Missing'}</div>
-                          <div>Order ID: {order?.oid || order?.id || 'Missing'}</div>
-                          <div>Status: {order?.orderStatus || 'Unknown'}</div>
-                          <div className="mt-2 break-all">
-                            <strong>Raw:</strong><br/>
-                            {JSON.stringify(order, null, 1)}
-                          </div>
-                        </div>
-                      )}
+                      <div className="text-sm text-gray-600 mb-4">Please refresh the page or try again.</div>
                     </div>
                   );
                 }
@@ -247,20 +216,6 @@ function QRPage() {
                       value={JSON.stringify(qrContent)}
                       size={200}
                     />
-
-                    {/* Debug info for development */}
-                    {process.env.NODE_ENV === 'development' && (
-                      <div className="text-xs text-gray-400 mt-2 p-2 bg-gray-100 rounded max-w-xs">
-                        <div className="font-bold mb-1">✅ QR Generated:</div>
-                        <div>OTP: {qrContent.otp}</div>
-                        <div>Order: {qrContent.orderId}</div>
-                        <div>Time: {qrContent.timestamp}</div>
-                        <div className="mt-1 break-all">
-                          <strong>JSON:</strong><br/>
-                          {JSON.stringify(qrContent)}
-                        </div>
-                      </div>
-                    )}
                   </>
                 );
               })()}
@@ -270,7 +225,7 @@ function QRPage() {
               <div className="text-center">
                 <div className="text-sm text-gray-500 mb-2">Order Code</div>
                 <div className="text-3xl font-bold tracking-wider">
-                  {order?.orderOtp || order?.otp || order?.OTP || 'N/A'}
+                  {order?.orderOtp || 'N/A'}
                 </div>
                 <div className="text-xs text-gray-400 mt-2">
                   Valid for this order only
@@ -282,16 +237,16 @@ function QRPage() {
           {/* Instructions */}
           <div className="text-center px-8 max-w-md">
             <div className="font-medium text-xl text-gray-700 mb-4">
-              Scan this QR from our Machine
+              Scan this QR to Start Preparation
             </div>
             <div className="text-sm text-gray-500 mb-6">
-              Alternatively, you can enter the 6-digit code manually on the machine
+              Alternatively, you can enter the 4-digit code manually on the machine to begin food preparation
             </div>
             
             {/* Order Status Indicator */}
             <div className="flex items-center justify-center mb-6">
-              <div className="animate-pulse h-3 w-3 bg-green-500 rounded-full mr-2"></div>
-              <span className="text-green-600 font-medium">Waiting for machine scan...</span>
+              <div className="animate-pulse h-3 w-3 bg-blue-500 rounded-full mr-2"></div>
+              <span className="text-blue-600 font-medium">Ready for preparation - scan to start...</span>
             </div>
           </div>
 

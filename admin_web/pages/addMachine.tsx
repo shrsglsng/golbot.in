@@ -21,7 +21,7 @@ function AddMachine() {
     }
 
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/machine/create`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/admin/machines`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

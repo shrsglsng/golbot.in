@@ -42,32 +42,10 @@ export const createOrder = async (req, res) => {
       location: machine.location 
     });
 
-    // Check for existing orders that should block new order creation
-    // Only block orders that are truly in progress (not completed/cancelled)
-    const existingOrder = await DatabaseUtil.findOne(Order, {
-      uid: new mongoose.Types.ObjectId(uid),
-      orderStatus: { $in: ["PENDING", "PREPARING", "READY"] }
-      // PAID orders are allowed to proceed to let users place new orders while waiting
-      // COMPLETED and CANCELLED orders don't block new orders
-    });
-
-    if (existingOrder) {
-      const blockingMessages = {
-        'PENDING': 'You have a pending payment. Please complete payment or cancel the order first.',
-        'PREPARING': 'Your order is being prepared. Please wait for completion before placing a new order.',
-        'READY': 'Your order is ready for pickup. Please collect it before placing a new order.'
-      };
-      
-      logger.warn('User has existing blocking order', { 
-        userId: uid, 
-        existingOrderId: existingOrder._id,
-        status: existingOrder.orderStatus 
-      });
-      
-      const message = blockingMessages[existingOrder.orderStatus] || 
-                     "You have an active order. Please complete it first.";
-      throw new BadRequestError(message);
-    }
+    // Allow multiple orders since actual processing doesn't start until OTP entry
+    // Users can place multiple orders and choose which one to process with OTP
+    // No blocking based on existing order status - all orders are allowed
+    logger.debug('Multiple orders allowed - no blocking restrictions', { userId: uid });
 
     // Calculate order amount with validation
     let price = 0, gst = 0;
@@ -187,8 +165,15 @@ export const createOrder = async (req, res) => {
 
     return ApiResponse.created(res, {
       order: result && typeof result.toObject === 'function' 
-        ? { ...result.toObject(), _id: createdOrderId || result._id }
-        : { _id: createdOrderId },
+        ? { 
+            ...result.toObject(), 
+            _id: createdOrderId || result._id,
+            orderCounter: result.orderCounter || 0
+          }
+        : { 
+            _id: createdOrderId,
+            orderCounter: 0
+          },
       paymentUrl,
       totalAmount: total
     }, "Order created successfully");
@@ -228,8 +213,8 @@ export const getOrderOTP = async (req, res) => {
       throw new BadRequestError("Cannot generate OTP for completed order");
     }
 
-    if (order.orderStatus !== "READY") {
-      logger.warn('OTP requested for non-ready order', { 
+    if (order.orderStatus !== "PAID") {
+      logger.warn('OTP requested for non-paid order', { 
         orderId: order._id, 
         userId: uid,
         status: order.orderStatus 
@@ -237,12 +222,14 @@ export const getOrderOTP = async (req, res) => {
       
       const statusMessages = {
         'PENDING': 'Payment is pending',
-        'PAID': 'Order is being prepared',
+        'OTP_VERIFIED': 'Order is already being prepared',
         'PREPARING': 'Order is being prepared',
+        'READY_FOR_PICKUP': 'Order is ready for pickup',
+        'COMPLETED': 'Order is already completed',
         'CANCELLED': 'Order has been cancelled'
       };
       
-      throw new BadRequestError(statusMessages[order.orderStatus] || "Order is not ready for pickup");
+      throw new BadRequestError(statusMessages[order.orderStatus] || "Order is not ready for OTP verification");
     }
 
     logger.info('OTP provided successfully', { 
@@ -251,7 +238,11 @@ export const getOrderOTP = async (req, res) => {
     });
 
     return ApiResponse.success(res, { 
-      order: { ...order.toObject(), oid: order._id },
+      order: { 
+        ...order.toObject(), 
+        oid: order._id,
+        orderCounter: order.orderCounter || 0
+      },
       orderOtp: order.orderOtp 
     }, "OTP retrieved successfully");
 
@@ -291,7 +282,11 @@ export const getLatestOrder = async (req, res) => {
     }
 
     return ApiResponse.success(res, { 
-      order: order ? { ...order.toObject(), oid: order._id } : null 
+      order: order ? { 
+        ...order.toObject(), 
+        oid: order._id,
+        orderCounter: order.orderCounter || 0
+      } : null 
     }, "Latest order retrieved");
 
   } catch (error) {
@@ -362,7 +357,7 @@ export const getIsOrderPreparing = async (req, res) => {
       }, "No orders found");
     }
 
-    const isPreparing = order.orderStatus === "PREPARING";
+    const isPreparing = ["OTP_VERIFIED", "PREPARING", "READY_FOR_PICKUP"].includes(order.orderStatus);
     
     logger.debug('Order preparing status', { 
       orderId: order._id, 
@@ -545,7 +540,8 @@ export const getAllOrders = async (req, res) => {
                 orderDate: "$createdAt",
                 amount: "$amount.total",
                 orderCompleted: 1,
-                orderOtp: 1
+                orderOtp: 1,
+                orderCounter: 1
               }
             }
           ],

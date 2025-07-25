@@ -9,7 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class PreparingOrderScreen extends StatefulWidget {
   final Order order;
-  
+
   PreparingOrderScreen({super.key, required this.order});
 
   @override
@@ -24,7 +24,6 @@ class _PreparingOrderScreenState extends State<PreparingOrderScreen> {
   @override
   void initState() {
     super.initState();
-    // You can update this section with actual logic to update orderStatus if needed.
   }
 
   // Call machine endpoints for status updates
@@ -78,16 +77,6 @@ class _PreparingOrderScreenState extends State<PreparingOrderScreen> {
           orderCompleted = true;
           orderStatus = "COMPLETED";
         });
-        // Optionally, navigate to home after a short delay
-        Future.delayed(const Duration(seconds: 2), () {
-          if (mounted) {
-            Navigator.pushAndRemoveUntil(
-              context,
-              MaterialPageRoute(builder: (context) => HomeScreen()),
-              (route) => false,
-            );
-          }
-        });
       } else {
         print('Failed to mark plate dispensed: ${response.body}');
       }
@@ -103,40 +92,20 @@ class _PreparingOrderScreenState extends State<PreparingOrderScreen> {
   void _markAsReadyForPickup() async {
     await _markOrderReadyForPickup();
   }
-  // Add startMachine API call using machine token
-  Future<void> _startMachine(String otp, String mid) async {
-    final url = Uri.parse('${BASE_URL}machine/startmachine');
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString("token");
-    print("Using machine_token: $token"); // Debug print
-    try {
-      final response = await http.post(
-        url,
-        headers: {
-          ...getSecureHeaders(),
-          "Authorization": "Bearer $token",
-        },
-        body: jsonEncode({
-          'orderOtp': otp,
-          'mid': mid,
-        }),
-      );
-      print('Start machine response status: \\${response.statusCode}');
-      print('Start machine response body: \\${response.body}');
-      if (response.statusCode == 200) {
-        // handle success, e.g. update UI or state
-      } else {
-        print('Failed to start machine: \\${response.body}');
-      }
-    } catch (e) {
-      print('Error starting machine: $e');
-    }
+
+  // For navigation, now only when the user presses the button
+  void _goHome() {
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (context) => HomeScreen()),
+      (route) => false,
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Color(0xFFFCF6FF), // Soft background
+      backgroundColor: Color(0xFFFCF6FF),
       appBar: PreferredSize(
         preferredSize: Size.fromHeight(64.0),
         child: AppBar(
@@ -193,7 +162,17 @@ class _PreparingOrderScreenState extends State<PreparingOrderScreen> {
                   SizedBox(height: 10),
                   Text("Food has been dispensed", style: TextStyle(fontSize: 16, color: Colors.grey[600])),
                   SizedBox(height: 18),
-                  Text("Returning to home screen...", style: TextStyle(fontSize: 14, color: Colors.grey[500], fontStyle: FontStyle.italic)),
+                  Text("Press 'Go to Home' to continue.", style: TextStyle(fontSize: 14, color: Colors.grey[500], fontStyle: FontStyle.italic)),
+                  SizedBox(height: 24),
+                  ElevatedButton(
+                    onPressed: _goHome,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue,
+                      padding: EdgeInsets.symmetric(horizontal: 36, vertical: 16),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                    ),
+                    child: Text("Go to Home", style: TextStyle(fontSize: 18, color: Colors.white)),
+                  ),
                 ] else if (readyForPickup) ...[
                   Icon(Icons.restaurant_menu, size: 80, color: Colors.blue),
                   SizedBox(height: 18),
@@ -226,7 +205,7 @@ class _PreparingOrderScreenState extends State<PreparingOrderScreen> {
 
                 SizedBox(height: 36),
 
-                // Buttons
+                // Buttons for navigation
                 if (!orderCompleted)
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,

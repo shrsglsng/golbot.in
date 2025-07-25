@@ -29,6 +29,10 @@ export const cartSlice = createSlice({
     ) => {
       state.items = [...action.payload.allItems];
     },
+
+    clearCart: (state) => {
+      state.items = [];
+    },
   },
 
   extraReducers: (builder) => {
@@ -42,7 +46,7 @@ export const cartSlice = createSlice({
 });
 
 // Actions
-export const { updateCart, setItems } = cartSlice.actions;
+export const { updateCart, setItems, clearCart } = cartSlice.actions;
 
 // Selector
 export const selectCart = (state: AppState) => state.cartSlice.items;

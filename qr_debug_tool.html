@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QR Code Debug Tool</title>
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        canvas {
+            margin: 10px;
+            border: 1px solid #ccc;
+        }
+        textarea {
+            width: 100%;
+            height: 100px;
+            font-family: monospace;
+        }
+        input {
+            padding: 5px;
+            margin: 5px;
+        }
+        button {
+            padding: 10px 15px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        .result {
+            background: #f8f9fa;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 3px;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔍 QR Code Debug Tool</h1>
+    <p>This tool helps debug QR code generation and parsing issues for the GolBot ordering system.</p>
+
+    <div class="test-section">
+        <h2>1. Generate Test QR Code</h2>
+        <label>OTP (6 digits): <input type="text" id="testOtp" value="123456" maxlength="6"></label><br>
+        <label>Order ID: <input type="text" id="testOrderId" value="test_order_123"></label><br>
+        <button onclick="generateTestQR()">Generate QR Code</button>
+        <div id="testQrResult"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>2. Parse QR Content</h2>
+        <textarea id="qrContent" placeholder="Paste QR code content here (JSON string)">{"otp":"123456","orderId":"test123","timestamp":1753381304750}</textarea><br>
+        <button onclick="parseQRContent()">Parse Content</button>
+        <div id="parseResult" class="result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>3. Test Your Scanned Value</h2>
+        <p>You scanned: <code>1753381304750</code></p>
+        <button onclick="analyzeScannedValue()">Analyze This Value</button>
+        <div id="scannedAnalysis" class="result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>4. Expected QR Format</h2>
+        <div class="result">
+Expected QR JSON format:
+{
+  "otp": "123456",           // 6-digit OTP
+  "orderId": "order_id_123", // Order identifier
+  "timestamp": 1753381304750 // Current timestamp
+}
+
+If you're only getting the timestamp (1753381304750), it means:
+- The OTP field is missing or undefined
+- JSON parsing extracted only the timestamp value
+- The order data was incomplete when QR was generated
+        </div>
+    </div>
+
+    <script>
+        function generateTestQR() {
+            const otp = document.getElementById('testOtp').value;
+            const orderId = document.getElementById('testOrderId').value;
+            
+            const qrData = {
+                otp: otp,
+                orderId: orderId,
+                timestamp: Date.now()
+            };
+            
+            const qrString = JSON.stringify(qrData);
+            
+            QRCode.toCanvas(qrString, { width: 200 }, function (err, canvas) {
+                const result = document.getElementById('testQrResult');
+                result.innerHTML = '';
+                
+                if (err) {
+                    result.innerHTML = '<div style="color: red;">Error generating QR: ' + err + '</div>';
+                    return;
+                }
+                
+                result.appendChild(canvas);
+                result.innerHTML += '<div class="result">QR Content: ' + qrString + '</div>';
+            });
+        }
+        
+        function parseQRContent() {
+            const content = document.getElementById('qrContent').value;
+            const resultDiv = document.getElementById('parseResult');
+            
+            try {
+                const parsed = JSON.parse(content);
+                resultDiv.innerHTML = `
+Parsing Result:
+✅ Valid JSON
+
+Extracted Data:
+- OTP: ${parsed.otp || 'MISSING ❌'}
+- Order ID: ${parsed.orderId || 'MISSING ❌'}
+- Timestamp: ${parsed.timestamp || 'MISSING ❌'}
+
+Full Object:
+${JSON.stringify(parsed, null, 2)}
+                `;
+            } catch (error) {
+                resultDiv.innerHTML = `
+❌ Parsing Error: ${error.message}
+
+This is not valid JSON. Raw content:
+${content}
+                `;
+            }
+        }
+        
+        function analyzeScannedValue() {
+            const scannedValue = "1753381304750";
+            const resultDiv = document.getElementById('scannedAnalysis');
+            
+            // Check if it's a timestamp
+            const timestamp = parseInt(scannedValue);
+            const date = new Date(timestamp);
+            const isValidDate = !isNaN(date.getTime());
+            
+            resultDiv.innerHTML = `
+Analysis of scanned value: ${scannedValue}
+
+🔍 Timestamp Analysis:
+- Is valid timestamp: ${isValidDate ? '✅' : '❌'}
+- Date: ${isValidDate ? date.toISOString() : 'Invalid'}
+- Human readable: ${isValidDate ? date.toLocaleString() : 'Invalid'}
+
+🔍 Possible Issues:
+${isValidDate ? `
+✅ This IS a valid timestamp from ${date.toLocaleString()}
+❌ But it should be part of a JSON object, not standalone
+❌ This suggests the QR code contained only the timestamp field
+❌ The OTP and orderId fields were likely missing or undefined
+` : `
+❌ Not a valid timestamp
+❌ Unexpected data format
+`}
+
+🛠️ Next Steps:
+1. Check the QR generation code for missing OTP
+2. Verify the order object has all required fields
+3. Use browser dev tools to inspect the actual QR content
+4. Test with the debug panel in development mode
+            `;
+        }
+        
+        // Auto-generate a test QR on page load
+        window.onload = function() {
+            generateTestQR();
+            analyzeScannedValue();
+        };
+    </script>
+</body>
+</html>

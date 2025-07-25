@@ -10,7 +10,7 @@ Future<Order?> startMachine(
     String otp, String mid, BuildContext context) async {
   final prefs = await SharedPreferences.getInstance();
   // Use a dedicated key for machine token
-  final token = prefs.getString("machine_token");
+  final token = prefs.getString("token");
 
   try {
     print('Starting machine with OTP: $otp, MID: $mid');

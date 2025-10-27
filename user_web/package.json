@@ -4,9 +4,15 @@
   "private": true,
   "scripts": {
     "dev": "next dev --hostname 0.0.0.0",
+    "dev:local": "node scripts/env-setup.js development && next dev --hostname 0.0.0.0",
     "build": "next build",
+    "build:development": "node scripts/env-setup.js development && next build",
+    "build:production": "node scripts/env-setup.js production && next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "env:dev": "node scripts/env-setup.js development",
+    "env:prod": "node scripts/env-setup.js production",
+    "env:validate": "node scripts/validate-env.js"
   },
   "dependencies": {
     "@cashfreepayments/cashfree-js": "^1.0.4",

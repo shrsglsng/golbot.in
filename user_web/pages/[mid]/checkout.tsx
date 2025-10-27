@@ -166,7 +166,8 @@ function CheckoutPage() {
             } catch (pollError) {
               console.error(`❌ Poll attempt ${attempt} failed:`, pollError);
               if (attempt === maxAttempts) {
-                throw new Error(`Failed to get payment URL after ${maxAttempts} attempts. Error: ${pollError.message}`);
+                const errorMessage = pollError instanceof Error ? pollError.message : String(pollError);
+                throw new Error(`Failed to get payment URL after ${maxAttempts} attempts. Error: ${errorMessage}`);
               }
             }
           }

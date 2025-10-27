@@ -10,12 +10,12 @@ const s3 = new S3Client({
     accessKeyId: process.env.AWS_SECRET_ID,
     secretAccessKey: process.env.AWS_SECRET_KEY,
   },
-  region: "ap-south-1", // this is the region that you select in AWS account
+  region: process.env.AWS_REGION || "ap-south-1",
 })
 
 const s3Storage = multerS3({
   s3: s3, // s3 instance
-  bucket: "reported-images", // change it as per your project requirement
+  bucket: process.env.AWS_BUCKET_NAME || "reported-images",
   acl: "public-read", // storage access type
   contentType: multerS3.AUTO_CONTENT_TYPE,
   metadata: (req, file, cb) => {

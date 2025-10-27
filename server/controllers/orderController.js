@@ -317,11 +317,14 @@ export const getIsOrderCompleted = async (req, res) => {
       }, "No orders found");
     }
 
-    const isCompleted = order.orderCompleted;
+    // Only consider successfully completed orders, not cancelled ones
+    const isCompleted = order.orderCompleted && order.orderStatus !== "CANCELLED";
     
     logger.debug('Order completion status', { 
       orderId: order._id, 
       userId: uid,
+      orderStatus: order.orderStatus,
+      orderCompleted: order.orderCompleted,
       isCompleted 
     });
 
@@ -357,7 +360,9 @@ export const getIsOrderPreparing = async (req, res) => {
       }, "No orders found");
     }
 
-    const isPreparing = ["OTP_VERIFIED", "PREPARING", "READY_FOR_PICKUP"].includes(order.orderStatus);
+    // Exclude cancelled orders from being considered as preparing
+    const isPreparing = ["OTP_VERIFIED", "PREPARING", "READY_FOR_PICKUP"].includes(order.orderStatus) 
+                       && order.orderStatus !== "CANCELLED";
     
     logger.debug('Order preparing status', { 
       orderId: order._id, 
@@ -372,6 +377,47 @@ export const getIsOrderPreparing = async (req, res) => {
 
   } catch (error) {
     logger.error('Get order preparing status failed', { 
+      error: error.message,
+      userId: req.user?.uid 
+    });
+    throw error;
+  }
+};
+
+// ----------------------------------------------------------------------------
+// Check if latest order was cancelled
+export const getIsOrderCancelled = async (req, res) => {
+  try {
+    const { uid } = req.user;
+
+    logger.debug('Order cancellation check', { userId: uid });
+
+    const order = await DatabaseUtil.findOne(Order, { uid }, {
+      sort: { createdAt: -1 }
+    });
+
+    if (!order) {
+      logger.debug('No order found for cancellation check', { userId: uid });
+      return ApiResponse.success(res, { 
+        isOrderCancelled: false 
+      }, "No orders found");
+    }
+
+    const isCancelled = order.orderStatus === "CANCELLED";
+    
+    logger.debug('Order cancellation status', { 
+      orderId: order._id, 
+      userId: uid,
+      status: order.orderStatus,
+      isCancelled 
+    });
+
+    return ApiResponse.success(res, { 
+      isOrderCancelled: isCancelled 
+    }, "Order cancellation status retrieved");
+
+  } catch (error) {
+    logger.error('Get order cancellation status failed', { 
       error: error.message,
       userId: req.user?.uid 
     });

@@ -85,6 +85,115 @@ function CheckoutPage() {
 
       dispatch(updateOrder({ order: dbOrder }));
 
+      // Step 2: Create PhonePe Order
+      const phonepeRes = await fetch(
+        `${process.env.NEXT_PUBLIC_SERVER_URL}/phonepe/create-order`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${localStorage.getItem("Token")}`,
+          },
+          body: JSON.stringify({ orderId: dbOrder.oid }),
+        }
+      );
+
+      const phonepeData = await phonepeRes.json();
+      console.log("PhonePe order response:", phonepeData);
+
+      if (phonepeRes.status !== 201 || !phonepeData?.data?.phonepeOrder?.orderId) {
+        console.error("PhonePe order creation failed:", phonepeData);
+        throw new Error("Failed to create PhonePe order");
+      }
+
+      const phonepeOrder = phonepeData.data.phonepeOrder;
+      const checkoutUrl = phonepeData.data.checkoutUrl || phonepeOrder?.checkoutUrl;
+      const payPageUrl = phonepeOrder?.payPageUrl;
+      const orderId = phonepeOrder?.orderId;
+      
+      let finalCheckoutUrl = checkoutUrl || payPageUrl;
+
+      console.log("PhonePe order details:", {
+        orderId,
+        checkoutUrl,
+        payPageUrl,
+        finalCheckoutUrl,
+        debug: phonepeData.data.debug,
+        fullResponse: phonepeData.data
+      });
+
+      if (!finalCheckoutUrl) {
+        // If no immediate URL, check if polling is available
+        if (phonepeData.data.fallbackAvailable && phonepeData.data.pollEndpoint) {
+          console.log("🔄 No immediate checkout URL, attempting to poll for it...");
+          
+          // Show user-friendly message
+          alert("Please wait while we prepare your payment... This may take a few seconds.");
+          
+          // Try polling for the URL for up to 30 seconds
+          const maxAttempts = 10;
+          const pollInterval = 3000; // 3 seconds
+          
+          for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+            console.log(`📡 Polling attempt ${attempt}/${maxAttempts} for payment URL...`);
+            
+            try {
+              await new Promise(resolve => setTimeout(resolve, pollInterval));
+              
+              const pollRes = await fetch(
+                `${process.env.NEXT_PUBLIC_SERVER_URL}/phonepe/payment-url/${orderId}`,
+                {
+                  method: "GET",
+                  headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${localStorage.getItem("Token")}`,
+                  },
+                }
+              );
+              
+              const pollData = await pollRes.json();
+              console.log(`📡 Poll attempt ${attempt} response:`, pollData);
+              
+              if (pollRes.status === 200 && pollData.data?.found && pollData.data?.paymentUrl) {
+                console.log("✅ Payment URL found via polling!");
+                finalCheckoutUrl = pollData.data.paymentUrl;
+                break;
+              }
+              
+              if (attempt === maxAttempts) {
+                throw new Error("Payment URL not available after polling. Please try again or contact support.");
+              }
+            } catch (pollError) {
+              console.error(`❌ Poll attempt ${attempt} failed:`, pollError);
+              if (attempt === maxAttempts) {
+                throw new Error(`Failed to get payment URL after ${maxAttempts} attempts. Error: ${pollError.message}`);
+              }
+            }
+          }
+        } else {
+          console.error("PhonePe checkout URL missing:", {
+            phonepeData,
+            expectedStructure: "data.phonepeOrder.checkoutUrl or data.phonepeOrder.payPageUrl"
+          });
+          throw new Error(`PhonePe checkout URL not received. Response: ${JSON.stringify(phonepeData.data.debug || {})}`);
+        }
+      }
+      
+      if (!finalCheckoutUrl) {
+        throw new Error("Unable to obtain PhonePe checkout URL");
+      }
+
+      // Step 3: Redirect to PhonePe Checkout
+      console.log("🟦 Redirecting to PhonePe checkout:", finalCheckoutUrl);
+      
+      // Store order details for return handling
+      sessionStorage.setItem('pendingOrderId', orderId);
+      sessionStorage.setItem('pendingMachineId', mid?.toString() || '');
+      
+      // Redirect to PhonePe payment page
+      window.location.href = finalCheckoutUrl;
+
+      /* RAZORPAY IMPLEMENTATION (COMMENTED OUT - KEPT FOR FALLBACK)
       // Step 2: Create Razorpay Order
       const razorRes = await fetch(
         `${process.env.NEXT_PUBLIC_SERVER_URL}/payment/create-order`,
@@ -161,6 +270,8 @@ function CheckoutPage() {
       });
 
       razorpay.open();
+      */
+
     } catch (err: any) {
       console.error("❌ Payment initiation failed:", err);
       
@@ -192,14 +303,7 @@ function CheckoutPage() {
     setAmount({ price: tmpPrice, gst: tmpGst, total });
 
     if (total === 0) router.push(`/${mid}`);
-  }, [items]);
-
-  useEffect(() => {
-    const script = document.createElement("script");
-    script.src = "https://checkout.razorpay.com/v1/checkout.js";
-    script.async = true;
-    document.body.appendChild(script);
-  }, []);
+  }, [items, mid, router]);
 
   return (
     <>

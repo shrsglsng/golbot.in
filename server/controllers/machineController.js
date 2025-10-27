@@ -494,6 +494,100 @@ export const markOrderReadyForPickup = async (req, res) => {
 };
 
 // ----------------------------------------------------------------------------
+// Cancel order from machine
+export const cancelOrder = async (req, res) => {
+  try {
+    const { oid, mid, reason } = req.body;
+    
+    logger.info('Cancel order request', { 
+      orderId: oid,
+      mid,
+      reason,
+      machineIp: req.ip 
+    });
+
+    // Validate input
+    Validator.validateRequired(['oid', 'mid'], { oid, mid });
+    Validator.validateObjectId(oid, 'Order ID');
+    Validator.validateMachineId(mid);
+
+    // Verify machine exists
+    const machine = await DatabaseUtil.findOne(Machine, { mid }, { throwIfNotFound: true });
+
+    // Find order - allow cancellation of PREPARING or OTP_VERIFIED orders
+    const order = await DatabaseUtil.findOne(Order, { 
+      _id: oid,
+      machineId: machine._id,
+      orderStatus: { $in: ["PREPARING", "OTP_VERIFIED"] },
+      orderCompleted: false
+    }, { 
+      throwIfNotFound: true,
+      populate: [
+        { path: 'uid', select: 'phone' },
+        { path: 'machineId', select: 'mid name' }
+      ]
+    });
+
+    // Use transaction to update order status
+    await DatabaseUtil.transaction(async (session) => {
+      // Update order status to cancelled
+      const orderToUpdate = await Order.findById(order._id).session(session);
+      await orderToUpdate.updateStatus(
+        "CANCELLED",
+        "machine",
+        reason || "Order cancelled by machine operator",
+        {
+          machineId: machine.mid,
+          machineName: machine.name,
+          cancelledAt: new Date(),
+          cancelledBy: "machine"
+        }
+      );
+      
+      // Mark order as completed (cancelled counts as completed)
+      orderToUpdate.orderCompleted = true;
+      await orderToUpdate.save({ session });
+
+      // Update machine status back to connected/ready
+      await DatabaseUtil.updateById(Machine, machine._id, {
+        mstatus: "CONNECTED",
+        currentOrderId: null,
+        lastCancelledOrderAt: new Date()
+      }, { session });
+    });
+
+    logger.info('Order cancelled successfully', { 
+      orderId: order._id,
+      mid,
+      userId: order.uid._id,
+      reason
+    });
+
+    return res.status(200).json({ 
+      result: {
+        order: {
+          orderId: order._id,
+          status: "CANCELLED"
+        },
+        machine: {
+          mid: machine.mid,
+          status: "CONNECTED"
+        }
+      },
+      message: "Order cancelled successfully"
+    });
+
+  } catch (error) {
+    logger.error('Cancel order failed', { 
+      error: error.message,
+      orderId: req.body?.oid,
+      mid: req.body?.mid
+    });
+    throw error;
+  }
+};
+
+// ----------------------------------------------------------------------------
 // Mark order as completed after plate dispensed
 export const plateDispensed = async (req, res) => {
   try {

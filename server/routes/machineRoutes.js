@@ -6,7 +6,8 @@ import {
   updateIpAddress,
   startMachine,
   markOrderReadyForPickup,
-  plateDispensed
+  plateDispensed,
+  cancelOrder
 } from "../controllers/machineController.js";
 import machineAuth from "../middlewares/machineAuth.js";
 import validateMobileApp from "../middlewares/mobileAuth.js";
@@ -26,5 +27,6 @@ router.post("/startmachine", validateMobileApp, machineAuth, startMachine);
 router.post("/start", validateMobileApp, machineAuth, startMachine); // Keep both for compatibility
 router.post("/ready-for-pickup", validateMobileApp, machineAuth, markOrderReadyForPickup);
 router.post("/plate-dispensed", validateMobileApp, machineAuth, plateDispensed);
+router.post("/cancel-order", validateMobileApp, machineAuth, cancelOrder);
 
 export default router;

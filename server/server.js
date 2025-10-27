@@ -19,6 +19,7 @@ import AdminRoute from "./routes/adminRoute.js";
 import OrderRoute from "./routes/orderRoute.js";
 import MachineRoute from "./routes/machineRoutes.js";
 import PaymentRoute from "./routes/paymentRoutes.js";
+import PhonePeRoute from "./routes/phonePeRoutes.js";
 import paymentWebhook from "./routes/paymentWebhook.js";
 
 import { getAllItems } from "./controllers/utilController.js";
@@ -148,6 +149,7 @@ app.use(`${BASE_URL_PATH}admin`, AdminRoute);
 app.use(`${BASE_URL_PATH}order`, OrderRoute);
 app.use(`${BASE_URL_PATH}machine`, MachineRoute);
 app.use(`${BASE_URL_PATH}payment`, PaymentRoute);
+app.use(`${BASE_URL_PATH}phonepe`, PhonePeRoute);
 
 // Utility routes
 app.get(`${BASE_URL_PATH}getAllItems`, getAllItems);

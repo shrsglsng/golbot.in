@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import { useRouter } from "next/router"
 import { useSelector } from "react-redux"
 import { selectOrder } from "../../redux/orderSlice"
-import { getIsOrderPreparing, getLatestOrder } from "../../services/order"
+import { getIsOrderPreparing, getLatestOrder, getIsOrderCancelled } from "../../services/order"
 
 function PreparingOrder() {
   const router = useRouter()
@@ -30,6 +30,24 @@ function PreparingOrder() {
         }
         
         setIsLoading(false) // Set loading to false after first check
+        
+        // Check if order was cancelled
+        const isCancelled = await getIsOrderCancelled()
+        if (!isMounted) return
+        
+        if (isCancelled) {
+          if (intervalId) {
+            clearInterval(intervalId)
+            intervalId = null
+          }
+          if (isMounted) {
+            // Order was cancelled, redirect to cancelled page
+            router.replace(`/${router.query.mid}/cancelled`)
+          }
+          return
+        }
+        
+        // Check if order is still preparing
         const isStillPreparing = await getIsOrderPreparing()
         if (!isMounted) return
         

@@ -5,6 +5,7 @@ import {
   getLatestOrder,
   getIsOrderCompleted,
   getIsOrderPreparing,
+  getIsOrderCancelled,
   createReportIssue,
   getAllOrders
 } from "../controllers/orderController.js";
@@ -20,6 +21,7 @@ router.get("/otp", auth, getOrderOTP);
 router.get("/latest", auth, getLatestOrder);
 router.get("/completed", auth, getIsOrderCompleted);
 router.get("/preparing", auth, getIsOrderPreparing);
+router.get("/cancelled", auth, getIsOrderCancelled);
 
 // Issue report with image
 router.post("/report", auth, uploadImage.single("image"), createReportIssue);

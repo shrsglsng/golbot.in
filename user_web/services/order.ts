@@ -208,6 +208,35 @@ export async function getIsOrderPreparing(): Promise<boolean> {
   return false;
 }
 
+// Is Order Cancelled
+export async function getIsOrderCancelled(): Promise<boolean> {
+  const baseUrl = process.env.NEXT_PUBLIC_SERVER_URL;
+  if (!baseUrl) throw new Error("Server URL not set");
+
+  const url = `${baseUrl}/order/cancelled`;
+  const token = localStorage.getItem("Token");
+
+  try {
+    const res = await axios.get(url, {
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (res.status === 200) return res.data.data.isOrderCancelled;
+  } catch (error: any) {
+    console.error("getIsOrderCancelled error:", error);
+    
+    if (error.response?.status === 401) {
+      localStorage.removeItem("Token");
+      throw new Error("AUTHENTICATION_REQUIRED");
+    }
+  }
+
+  return false;
+}
+
 // Report Issue
 export async function reportIssue(data: any): Promise<boolean> {
   const baseUrl = process.env.NEXT_PUBLIC_SERVER_URL;

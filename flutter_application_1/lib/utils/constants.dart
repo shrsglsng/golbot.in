@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 
-const String BASE_URL = "http://192.168.31.158:5000/api/v1/";
+const String BASE_URL = "https://api.golbot.in/api/v1/";
 // const String BASE_URL = "http://localhost:5000/api/v1/";
 // const String BASE_URL = "https://letitdone.loca.lt/api/v1/";
 
 // Mobile App Security
-const String MOBILE_API_KEY = "golbot_mobile_secure_2024_v1_api_key";
+const String MOBILE_API_KEY = "golbot_mobile_dev_2024_v1_api_key";
 
 const Color CPrimary = Colors.orange;
 const Color CPrimaryLight = Color(0xFFFFCC80); // Orange.shade300 equivalent

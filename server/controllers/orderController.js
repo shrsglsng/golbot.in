@@ -8,38 +8,99 @@ import logger from "../utils/logger.js";
 import { BadRequestError, NotFoundError, ValidationError } from "../utils/errors.js";
 import { Validator } from "../utils/validation.js";
 import DatabaseUtil from "../utils/database.js";
+import machineResolver from "../services/machineResolver.js";
 import ApiResponse from "../utils/response.js";
 
 // ----------------------------------------------------------------------------
 // Create order (User initiated, payment pending)
 export const createOrder = async (req, res) => {
   try {
-    const { items, machineId } = req.body;
+    const { items, machineId, mt } = req.body;
     const { uid } = req.user;
 
-    logger.info('Order creation initiated', { 
-      userId: uid, 
-      machineId, 
-      itemCount: items?.length 
+    logger.info('Order creation initiated', {
+      userId: uid,
+      hasMachineId: !!machineId,
+      hasMachineToken: !!mt,
+      itemCount: items?.length
     });
 
-    // Validate input
-    Validator.validateRequired(['machineId', 'items'], { machineId, items });
-    Validator.validateMachineId(machineId);
+    // Validate items first
+    Validator.validateRequired(['items'], { items });
     Validator.validateOrderItems(items);
 
-    // Verify machine exists and is active
-    const machine = await DatabaseUtil.findOne(Machine, { mid: machineId }, { throwIfNotFound: true });
-    
-    if (!machine.isActive) {
-      logger.warn('Order attempt on inactive machine', { machineId, userId: uid });
-      throw new BadRequestError("Machine is currently not available");
+    // Resolve machine: either from token (mt) or direct ID (machineId)
+    let resolvedMachineId;
+    let machine;
+
+    if (mt) {
+      // QR code flow: resolve machine from token
+      logger.info('Resolving machine from token', { userId: uid });
+
+      const resolution = await machineResolver.validateForOrderCreation(mt, 'token');
+
+      if (!resolution.success) {
+        logger.warn('Machine token resolution failed', {
+          userId: uid,
+          error: resolution.error,
+          message: resolution.message
+        });
+
+        throw new BadRequestError(
+          resolution.message || 'Invalid or inactive machine QR code'
+        );
+      }
+
+      resolvedMachineId = resolution.machine.id;
+
+      // Fetch full machine object for order creation
+      machine = await DatabaseUtil.findOne(Machine, { mid: resolvedMachineId }, { throwIfNotFound: true });
+
+      logger.info('Machine resolved from token', {
+        userId: uid,
+        machineId: resolvedMachineId,
+        tokenUsed: true
+      });
+
+    } else if (machineId) {
+      // Manual entry flow: use direct machine ID
+      logger.info('Using direct machine ID', { userId: uid, machineId });
+
+      Validator.validateMachineId(machineId);
+
+      const resolution = await machineResolver.validateForOrderCreation(machineId, 'id');
+
+      if (!resolution.success) {
+        logger.warn('Machine validation failed', {
+          userId: uid,
+          machineId,
+          error: resolution.error
+        });
+
+        throw new BadRequestError(
+          resolution.message || 'Machine not found or unavailable'
+        );
+      }
+
+      resolvedMachineId = machineId;
+      machine = await DatabaseUtil.findOne(Machine, { mid: resolvedMachineId }, { throwIfNotFound: true });
+
+      logger.info('Machine validated', {
+        userId: uid,
+        machineId: resolvedMachineId,
+        tokenUsed: false
+      });
+
+    } else {
+      // Neither token nor ID provided
+      logger.warn('Order creation without machine identifier', { userId: uid });
+      throw new BadRequestError('Please scan a machine QR code or enter a machine code');
     }
 
-    logger.debug('Machine validation successful', { 
-      machineId, 
+    logger.debug('Machine validation successful', {
+      machineId: resolvedMachineId,
       machineName: machine.name,
-      location: machine.location 
+      location: machine.location
     });
 
     // Allow multiple orders since actual processing doesn't start until OTP entry
@@ -154,7 +215,7 @@ export const createOrder = async (req, res) => {
 
     // Payment integration is handled via separate payment controller
     const orderId = createdOrderId || result?._id || result?.id;
-    const paymentUrl = `${process.env.FRONTEND_URL}/payment?orderId=${orderId}`;
+    const paymentUrl = `${process.env.USER_WEB_URL}/payment?orderId=${orderId}`;
 
     logger.info('Order creation completed', { 
       orderId: orderId,

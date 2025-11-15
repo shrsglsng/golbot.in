@@ -59,7 +59,7 @@ const PHONEPE_CONFIG = {
   webhookUser: process.env.PHONEPE_WEBHOOK_USER,
   webhookPass: process.env.PHONEPE_WEBHOOK_PASS,
   webhookStrict: process.env.PHONEPE_WEBHOOK_STRICT === 'true',
-  redirectUrl: process.env.PHONEPE_REDIRECT_URL,
+  redirectUrl: process.env.PHONEPE_REDIRECT_URL || `${process.env.USER_WEB_URL}/payment/redirect`,
   currency: 'INR'
 };
 
@@ -81,8 +81,8 @@ const PAYMENT_CONFIG = {
 
 // Frontend URLs for redirects
 const FRONTEND_CONFIG = {
-  userWebUrl: process.env.USER_WEB_URL || process.env.FRONTEND_URL || 'http://localhost:3000',
-  adminWebUrl: process.env.ADMIN_WEB_URL || process.env.ADMIN_URL || 'http://localhost:3001',
+  userWebUrl: process.env.USER_WEB_URL || 'http://localhost:3000',
+  adminWebUrl: process.env.ADMIN_WEB_URL || 'http://localhost:3001',
   successRoute: '/payment/{orderId}/success',
   failureRoute: '/payment/{orderId}/failed',
   redirectRoute: '/payment/{orderId}/redirect'
@@ -99,18 +99,20 @@ const validateConfig = () => {
 
   if (PAYMENT_GATEWAY === 'phonepe') {
     if (!PHONEPE_CLIENT_ID) {
-      const requiredVar = PHONEPE_ENVIRONMENT === 'production' 
-        ? 'PHONEPE_PROD_CLIENT_ID' 
+      const requiredVar = PHONEPE_ENVIRONMENT === 'production'
+        ? 'PHONEPE_PROD_CLIENT_ID'
         : 'PHONEPE_TEST_CLIENT_ID';
       errors.push(`${requiredVar} is required for ${PHONEPE_ENVIRONMENT} environment`);
     }
     if (!PHONEPE_CLIENT_SECRET) {
-      const requiredVar = PHONEPE_ENVIRONMENT === 'production' 
-        ? 'PHONEPE_PROD_CLIENT_SECRET' 
+      const requiredVar = PHONEPE_ENVIRONMENT === 'production'
+        ? 'PHONEPE_PROD_CLIENT_SECRET'
         : 'PHONEPE_TEST_CLIENT_SECRET';
       errors.push(`${requiredVar} is required for ${PHONEPE_ENVIRONMENT} environment`);
     }
-    if (!PHONEPE_CONFIG.redirectUrl) errors.push('PHONEPE_REDIRECT_URL is required');
+    if (!PHONEPE_CONFIG.redirectUrl) {
+      errors.push('USER_WEB_URL is required to construct PhonePe redirect URL');
+    }
   }
 
   if (errors.length > 0) {

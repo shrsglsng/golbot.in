@@ -55,7 +55,8 @@ npm run dev
 | `EXPAPP_JWT_SECRET` | JWT signing secret | - | ✅ |
 | `SMS_SECRET_KEY` | 2Factor SMS API key | - | ✅ |
 | `LOG_TO_FILE` | Enable file logging | false | ❌ |
-| `FRONTEND_URL` | Frontend application URL | - | ❌ |
+| `USER_WEB_URL` | User web frontend URL | http://localhost:3000 | ✅ |
+| `ADMIN_WEB_URL` | Admin web frontend URL | http://localhost:3001 | ✅ |
 
 ### Logging Configuration
 

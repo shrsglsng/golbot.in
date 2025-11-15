@@ -258,6 +258,21 @@ export const verifyPhonePePayment = async (req, res) => {
 
         // Update order status to PAID
         const orderToUpdate = await Order.findById(order._id).session(session);
+
+        // Validate order has machine binding before marking as PAID
+        if (!orderToUpdate.machineId) {
+          logger.error('Payment verification for order without machineId', {
+            orderId: order._id,
+            userId: uid
+          });
+          throw new BadRequestError('Order missing machine binding - cannot process payment');
+        }
+
+        logger.debug('Order machine binding validated', {
+          orderId: order._id,
+          machineId: orderToUpdate.machineId
+        });
+
         await orderToUpdate.updateStatus(
           "PAID",
           "payment_verified",
@@ -444,6 +459,21 @@ async function processSuccessfulPayment(paymentRecord, payload, transactionId) {
     // Update order status
     const orderToUpdate = await Order.findById(paymentRecord.orderId).session(session);
     const orderOtp = Math.floor(1000 + Math.random() * 9000).toString();
+
+    // Validate order has machine binding before marking as PAID
+    if (!orderToUpdate.machineId) {
+      logger.error('PhonePe webhook for order without machineId', {
+        orderId: paymentRecord.orderId,
+        transactionId
+      });
+      throw new BadRequestError('Order missing machine binding - cannot process payment');
+    }
+
+    logger.debug('Order machine binding validated (webhook)', {
+      orderId: orderToUpdate._id,
+      machineId: orderToUpdate.machineId
+    });
+
     
     await orderToUpdate.updateStatus(
       "PAID",

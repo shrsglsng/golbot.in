@@ -311,21 +311,45 @@ export const getReportIssues = async (req, res) => {
 export const registerAdmin = async (req, res) => {
   try {
     const { email, password, location, name } = req.body;
-    
-    logger.info('Admin registration attempt', { 
+
+    logger.info('Admin registration attempt', {
       email: email?.substring(0, 5) + '***',
-      location 
+      location,
+      authenticatedAdmin: req.user?.uid ? 'yes' : 'no'
     });
+
+    // Security: Check if this is the first admin or if request is authenticated
+    const adminCount = await Admin.countDocuments();
+
+    if (adminCount > 0 && !req.user?.uid) {
+      // Admins exist but request is not authenticated
+      logger.warn('Unauthorized admin registration attempt blocked', {
+        email: email?.substring(0, 5) + '***',
+        adminCount
+      });
+      throw new UnauthorizedError("Admin registration requires authentication. Please contact an existing administrator.");
+    }
+
+    if (adminCount === 0) {
+      logger.info('First admin registration - no authentication required', {
+        email: email?.substring(0, 5) + '***'
+      });
+    } else {
+      logger.info('New admin registration by authenticated admin', {
+        email: email?.substring(0, 5) + '***',
+        createdBy: req.user.uid
+      });
+    }
 
     // Validate input
     Validator.validateRequired(['email', 'password'], { email, password });
     Validator.validateEmail(email);
     Validator.validateString(password, 'Password', { minLength: 8 });
-    
+
     if (name) {
       Validator.validateString(name, 'Name', { minLength: 2, maxLength: 100 });
     }
-    
+
     if (location) {
       Validator.validateString(location, 'Location', { maxLength: 200 });
     }

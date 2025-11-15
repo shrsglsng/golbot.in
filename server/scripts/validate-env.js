@@ -14,13 +14,13 @@ const requiredEnvVars = [
   'AWS_SECRET_KEY',
   'AWS_BUCKET_NAME',
   'AWS_REGION',
-  'FRONTEND_URL',
-  'CORS_ORIGIN'
+  'USER_WEB_URL',
+  'ADMIN_WEB_URL'
 ];
 
 const conditionalEnvVars = {
   razorpay: ['RAZORPAY_KEY_ID', 'RAZORPAY_KEY_SECRET'],
-  phonepe: ['PHONEPE_ENV', 'PHONEPE_CLIENT_ID', 'PHONEPE_CLIENT_SECRET', 'PHONEPE_REDIRECT_URL']
+  phonepe: ['PHONEPE_ENV', 'PHONEPE_CLIENT_ID', 'PHONEPE_CLIENT_SECRET']
 };
 
 let hasErrors = false;

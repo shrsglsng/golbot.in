@@ -15,10 +15,45 @@ const auth = async (req, res, next) => {
     const admin = await Admin.findOne({ email: payload.email });
 
     if (!admin) throw new UnauthenticatedError("Admin Authorization Invalid");
+
+    // Attach admin info to request
+    req.user = {
+      uid: admin._id,
+      email: admin.email
+    };
+
     next();
   } catch (error) {
     throw new UnauthenticatedError("Admin Authorization Invalid");
   }
+};
+
+// Optional authentication - attaches user info if token is present, but doesn't require it
+export const optionalAuth = async (req, res, next) => {
+  const authHeader = req.headers.authorization || req.headers.Authorization;
+
+  if (!authHeader || !authHeader.startsWith("Bearer")) {
+    // No token provided - continue without auth
+    return next();
+  }
+
+  const token = authHeader.split(" ")[1];
+  try {
+    const payload = jwt.verify(token, process.env.EXPAPP_JWT_SECRET);
+    const admin = await Admin.findOne({ email: payload.email });
+
+    if (admin) {
+      // Attach admin info to request
+      req.user = {
+        uid: admin._id,
+        email: admin.email
+      };
+    }
+  } catch (error) {
+    // Invalid token - continue without auth (don't throw error)
+  }
+
+  next();
 };
 
 export default auth;

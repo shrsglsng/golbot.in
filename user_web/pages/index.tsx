@@ -30,7 +30,7 @@ function Home() {
           <button
             onClick={() => {
               setIsBtnLoading(true)
-              router.push("/m01/")
+              router.push("/order")
             }}
             className="p-3 bg-cblue rounded-md text-white">
             {isBtnLoading ? (

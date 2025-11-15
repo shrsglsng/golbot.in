@@ -5,13 +5,21 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const environment = process.argv[2] || 'development';
+const environment = process.argv[2] || 'local';
 const rootDir = path.resolve(__dirname, '..');
 
 const envFiles = {
-  development: '.env.development',
-  production: '.env.production'
+  local: '.env.local',
+  stage: '.env.stage',
+  prod: '.env.prod'
 };
+
+// Validate environment argument
+if (!envFiles[environment]) {
+  console.error(`Error: Invalid environment "${environment}"`);
+  console.error(`Valid environments: local, stage, prod`);
+  process.exit(1);
+}
 
 const sourceFile = path.join(rootDir, envFiles[environment]);
 const targetFile = path.join(rootDir, '.env');

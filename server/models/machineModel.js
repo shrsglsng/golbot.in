@@ -14,6 +14,16 @@ const machineSchema = new mongoose.Schema({
   password: String,
   ipAddress: String,
   lastPingedAt: Date,
+
+  // QR Token management for machine routing
+  qrTokens: [{
+    tokenId: { type: String, required: true },
+    createdAt: { type: Date, default: Date.now },
+    createdBy: { type: String, default: 'system' },
+    label: String,
+  }],
+
+  revokedTokens: [{ type: String }],
 }, { timestamps: true });
 
 machineSchema.pre("save", async function () {
@@ -29,6 +39,25 @@ machineSchema.methods.createJwt = function () {
 
 machineSchema.methods.comparePassword = async function (candidatePassword) {
   return await bcrypt.compare(candidatePassword, this.password);
+};
+
+// Get all active (non-revoked) tokens for this machine
+machineSchema.methods.getActiveTokens = function () {
+  return this.qrTokens.filter(token =>
+    !this.revokedTokens.includes(token.tokenId)
+  );
+};
+
+// Check if a specific token is active
+machineSchema.methods.isTokenActive = function (tokenId) {
+  return !this.revokedTokens.includes(tokenId);
+};
+
+// Revoke a specific token
+machineSchema.methods.revokeToken = function (tokenId) {
+  if (!this.revokedTokens.includes(tokenId)) {
+    this.revokedTokens.push(tokenId);
+  }
 };
 
 export default mongoose.model("Machine", machineSchema);

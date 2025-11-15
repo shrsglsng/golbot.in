@@ -21,6 +21,7 @@ import MachineRoute from "./routes/machineRoutes.js";
 import PaymentRoute from "./routes/paymentRoutes.js";
 import PhonePeRoute from "./routes/phonePeRoutes.js";
 import paymentWebhook from "./routes/paymentWebhook.js";
+import PublicMachineRoute from "./routes/publicMachineRoute.js";
 
 import { getAllItems } from "./controllers/utilController.js";
 
@@ -30,9 +31,9 @@ import errorHandlerMiddleware from "./middlewares/errorHandler.js";
 
 // constants
 const BASE_URL_PATH = "/api/v1/";
-const CONNECTION_URL = process.env.EXPAPP_MONGO_URL || process.env.EXPAPP_MONGO_LOCAL_URL;
+const CONNECTION_URL = process.env.EXPAPP_MONGO_URL;
 const PORT = process.env.PORT || process.env.EXPAPP_PORT || 5000;
-const NODE_ENV = process.env.NODE_ENV || 'development';
+const NODE_ENV = process.env.NODE_ENV || 'local';
 
 const app = express();
 
@@ -74,8 +75,13 @@ app.use(bodyParser.json({
 }));
 app.use(bodyParser.urlencoded({ limit: "30mb", extended: true }));
 
-// CORS configuration
-const allowedOrigins = process.env.CORS_ORIGIN?.split(",").map(o => o.trim()).filter(Boolean);
+// CORS configuration - construct from frontend URLs
+const allowedOrigins = [
+  process.env.USER_WEB_URL,
+  process.env.ADMIN_WEB_URL,
+  // Add any additional origins from CORS_ORIGIN if specified
+  ...(process.env.CORS_ORIGIN?.split(",").map(o => o.trim()).filter(Boolean) || [])
+].filter(Boolean);
 
 console.log("🔧 CORS Configuration:");
 console.log("📋 Allowed Origins:", allowedOrigins);
@@ -149,6 +155,7 @@ app.use(`${BASE_URL_PATH}admin`, AdminRoute);
 app.use(`${BASE_URL_PATH}order`, OrderRoute);
 app.use(`${BASE_URL_PATH}machine`, MachineRoute);
 app.use(`${BASE_URL_PATH}payment`, PaymentRoute);
+app.use(`${BASE_URL_PATH}machines`, PublicMachineRoute);
 app.use(`${BASE_URL_PATH}phonepe`, PhonePeRoute);
 
 // Utility routes

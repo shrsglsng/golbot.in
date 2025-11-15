@@ -4,9 +4,16 @@
   "private": true,
   "scripts": {
     "dev": "next dev -p 3001",
+    "dev:local": "node scripts/env-setup.js local && next dev -p 3001",
     "build": "next build",
+    "build:local": "node scripts/env-setup.js local && next build",
+    "build:stage": "node scripts/env-setup.js stage && next build",
+    "build:prod": "node scripts/env-setup.js prod && next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "env:local": "node scripts/env-setup.js local",
+    "env:stage": "node scripts/env-setup.js stage",
+    "env:prod": "node scripts/env-setup.js prod"
   },
   "dependencies": {
     "@emotion/react": "^11.10.6",

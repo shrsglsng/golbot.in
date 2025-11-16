@@ -189,7 +189,7 @@ export const getReportIssues = async (req, res) => {
   try {
     const { oid, phone, reportedDate, machineId, page = 1 } = req.query;
 
-    logger.info('Get report issues request', { 
+    logger.info('Get report issues request', {
       adminId: req.user?.uid,
       filters: { oid, phone, reportedDate, machineId },
       page: parseInt(page)
@@ -202,12 +202,12 @@ export const getReportIssues = async (req, res) => {
 
     // Build query object
     const queryObject = {};
-    
+
     if (oid) {
       Validator.validateObjectId(oid, 'Order ID');
       queryObject.oid = new mongoose.Types.ObjectId(oid);
     }
-    
+
     if (machineId) {
       queryObject.machineId = { $regex: machineId, $options: "i" };
     }
@@ -540,19 +540,19 @@ export const getAllAdmins = async (req, res) => {
 // Machine registration (admin only)
 export const registerMachine = async (req, res) => {
   try {
-    const { mid, password, location, ipAddress, name } = req.body;
-    
-    logger.info('Machine registration attempt', { 
+    let { mid, password, location, ipAddress, name } = req.body;
+
+    logger.info('Machine registration attempt', {
       mid,
       location,
-      adminId: req.user?.uid 
+      adminId: req.user?.uid
     });
 
     // Validate input
-    Validator.validateRequired(['mid', 'password', 'location', 'ipAddress'], 
+    Validator.validateRequired(['mid', 'password', 'location', 'ipAddress'],
       { mid, password, location, ipAddress });
-    
-    Validator.validateMachineId(mid);
+
+    mid = Validator.validateMachineId(mid); // Normalize to uppercase
     Validator.validateString(password, 'Password', { minLength: 8 });
     Validator.validateString(location, 'Location', { minLength: 3, maxLength: 200 });
     
@@ -623,10 +623,10 @@ export const getAllMachines = async (req, res) => {
   try {
     const { mid, mstatus, location, page = 1, isActive } = req.query;
 
-    logger.info('Get all machines request', { 
+    logger.info('Get all machines request', {
       adminId: req.user?.uid,
       filters: { mid, mstatus, location, isActive },
-      page: parseInt(page) 
+      page: parseInt(page)
     });
 
     // Validate pagination
@@ -636,21 +636,24 @@ export const getAllMachines = async (req, res) => {
 
     // Build query
     const query = {};
-    
+
     if (mid) {
       query.mid = { $regex: mid, $options: "i" };
     }
-    
+
     if (location) {
       query.location = { $regex: location, $options: "i" };
     }
-    
+
     if (mstatus && mstatus !== "ALL") {
       query.mstatus = mstatus;
     }
-    
+
+    // Filter by isActive - default to true (only show active machines)
     if (isActive !== undefined) {
       query.isActive = isActive === 'true';
+    } else {
+      query.isActive = true; // Default: only show active machines
     }
 
     const [machines, total] = await Promise.all([
@@ -698,6 +701,198 @@ export const getAllMachines = async (req, res) => {
       error: error.message,
       adminId: req.user?.uid,
       query: req.query 
+    });
+    throw error;
+  }
+};
+
+// ---------------------------------
+// Update machine status (admin toggle online/offline)
+export const updateMachineStatus = async (req, res) => {
+  try {
+    let { machineId } = req.params;
+    const { mstatus } = req.body;
+
+    logger.info('Machine status update request', {
+      adminId: req.user?.uid,
+      machineId,
+      newStatus: mstatus
+    });
+
+    // Validate input
+    Validator.validateRequired(['machineId', 'mstatus'], { machineId, mstatus });
+    machineId = Validator.validateMachineId(machineId); // Normalize to uppercase
+
+    // Validate status value
+    const validStatuses = ['CONNECTED', 'DISCONNECTED'];
+    if (!validStatuses.includes(mstatus)) {
+      throw new BadRequestError(`Invalid machine status. Must be one of: ${validStatuses.join(', ')}`);
+    }
+
+    // Find and update machine
+    const machine = await DatabaseUtil.findOne(Machine, { mid: machineId }, { throwIfNotFound: true });
+
+    const oldStatus = machine.mstatus;
+    machine.mstatus = mstatus;
+
+    // Update lastPingedAt when setting to CONNECTED
+    if (mstatus === 'CONNECTED') {
+      machine.lastPingedAt = new Date();
+    }
+
+    await machine.save();
+
+    logger.info('Machine status updated successfully', {
+      machineId,
+      oldStatus,
+      newStatus: mstatus,
+      adminId: req.user?.uid
+    });
+
+    return ApiResponse.success(res, {
+      machine: {
+        mid: machine.mid,
+        name: machine.name,
+        location: machine.location,
+        mstatus: machine.mstatus,
+        isActive: machine.isActive,
+        lastPingedAt: machine.lastPingedAt
+      }
+    }, `Machine status updated to ${mstatus}`);
+
+  } catch (error) {
+    logger.error('Machine status update failed', {
+      error: error.message,
+      machineId: req.params?.machineId,
+      adminId: req.user?.uid
+    });
+    throw error;
+  }
+};
+
+// ---------------------------------
+// Soft delete machine (deactivate)
+export const softDeleteMachine = async (req, res) => {
+  try {
+    let { machineId } = req.params;
+
+    logger.info('Soft delete machine request', {
+      adminId: req.user?.uid,
+      machineId
+    });
+
+    // Validate input
+    Validator.validateRequired(['machineId'], { machineId });
+    machineId = Validator.validateMachineId(machineId); // Normalize to uppercase
+
+    // Find machine
+    const machine = await DatabaseUtil.findOne(Machine, { mid: machineId }, { throwIfNotFound: true });
+
+    // Check if already deleted
+    if (!machine.isActive) {
+      logger.warn('Attempt to delete already inactive machine', {
+        machineId,
+        adminId: req.user?.uid
+      });
+      return ApiResponse.success(res, {
+        machine: {
+          mid: machine.mid,
+          isActive: machine.isActive
+        }
+      }, 'Machine is already inactive');
+    }
+
+    // Soft delete by setting isActive to false
+    machine.isActive = false;
+    machine.mstatus = 'DISCONNECTED'; // Also disconnect when deleting
+    machine.deletedAt = new Date();
+    machine.deletedBy = req.user?.uid || 'admin';
+
+    await machine.save();
+
+    logger.info('Machine soft deleted successfully', {
+      machineId,
+      adminId: req.user?.uid
+    });
+
+    return ApiResponse.success(res, {
+      machine: {
+        mid: machine.mid,
+        isActive: machine.isActive,
+        mstatus: machine.mstatus,
+        deletedAt: machine.deletedAt
+      }
+    }, 'Machine deactivated successfully');
+
+  } catch (error) {
+    logger.error('Soft delete machine failed', {
+      error: error.message,
+      machineId: req.params?.machineId,
+      adminId: req.user?.uid
+    });
+    throw error;
+  }
+};
+
+// ---------------------------------
+// Restore soft deleted machine (reactivate)
+export const restoreMachine = async (req, res) => {
+  try {
+    let { machineId } = req.params;
+
+    logger.info('Restore machine request', {
+      adminId: req.user?.uid,
+      machineId
+    });
+
+    // Validate input
+    Validator.validateRequired(['machineId'], { machineId });
+    machineId = Validator.validateMachineId(machineId); // Normalize to uppercase
+
+    // Find machine
+    const machine = await DatabaseUtil.findOne(Machine, { mid: machineId }, { throwIfNotFound: true });
+
+    // Check if already active
+    if (machine.isActive) {
+      logger.warn('Attempt to restore already active machine', {
+        machineId,
+        adminId: req.user?.uid
+      });
+      return ApiResponse.success(res, {
+        machine: {
+          mid: machine.mid,
+          isActive: machine.isActive
+        }
+      }, 'Machine is already active');
+    }
+
+    // Restore by setting isActive to true
+    machine.isActive = true;
+    machine.mstatus = 'DISCONNECTED'; // Set to disconnected, admin can manually connect
+    machine.restoredAt = new Date();
+    machine.restoredBy = req.user?.uid || 'admin';
+
+    await machine.save();
+
+    logger.info('Machine restored successfully', {
+      machineId,
+      adminId: req.user?.uid
+    });
+
+    return ApiResponse.success(res, {
+      machine: {
+        mid: machine.mid,
+        isActive: machine.isActive,
+        mstatus: machine.mstatus,
+        restoredAt: machine.restoredAt
+      }
+    }, 'Machine reactivated successfully');
+
+  } catch (error) {
+    logger.error('Restore machine failed', {
+      error: error.message,
+      machineId: req.params?.machineId,
+      adminId: req.user?.uid
     });
     throw error;
   }

@@ -15,7 +15,7 @@ import ApiResponse from "../utils/response.js";
 // Create order (User initiated, payment pending)
 export const createOrder = async (req, res) => {
   try {
-    const { items, machineId, mt } = req.body;
+    let { items, machineId, mt } = req.body;
     const { uid } = req.user;
 
     logger.info('Order creation initiated', {
@@ -63,10 +63,10 @@ export const createOrder = async (req, res) => {
       });
 
     } else if (machineId) {
-      // Manual entry flow: use direct machine ID
+      // Manual entry flow: use direct machine ID (normalize to uppercase)
       logger.info('Using direct machine ID', { userId: uid, machineId });
 
-      Validator.validateMachineId(machineId);
+      machineId = Validator.validateMachineId(machineId); // Normalize to uppercase
 
       const resolution = await machineResolver.validateForOrderCreation(machineId, 'id');
 
@@ -491,19 +491,20 @@ export const getIsOrderCancelled = async (req, res) => {
 export const createReportIssue = async (req, res) => {
   try {
     const { uid } = req.user;
-    const { oid, description, machineId } = req.body;
+    let { oid, description, machineId } = req.body;
 
-    logger.info('Issue report received', { 
-      userId: uid, 
-      orderId: oid, 
+    logger.info('Issue report received', {
+      userId: uid,
+      orderId: oid,
       machineId,
-      hasImage: !!req.file 
+      hasImage: !!req.file
     });
 
     // Validate input
     Validator.validateRequired(['oid', 'description', 'machineId'], { oid, description, machineId });
     Validator.validateObjectId(oid, 'Order ID');
     Validator.validateString(description, 'description', { minLength: 10, maxLength: 500 });
+    machineId = Validator.validateMachineId(machineId); // Normalize to uppercase
 
     // Verify order belongs to user
     const order = await DatabaseUtil.findOne(Order, { 
@@ -625,6 +626,22 @@ export const getAllOrders = async (req, res) => {
         }
       },
       {
+        $lookup: {
+          from: "orderitems",
+          localField: "_id",
+          foreignField: "orderId",
+          as: "orderItemsData"
+        }
+      },
+      {
+        $lookup: {
+          from: "items",
+          localField: "orderItemsData.itemId",
+          foreignField: "_id",
+          as: "itemDetails"
+        }
+      },
+      {
         $match: {
           ...query,
           ...(phone && { "userData.phone": { $regex: phone, $options: "i" } })
@@ -648,7 +665,38 @@ export const getAllOrders = async (req, res) => {
                 amount: "$amount.total",
                 orderCompleted: 1,
                 orderOtp: 1,
-                orderCounter: 1
+                orderCounter: 1,
+                items: {
+                  $map: {
+                    input: "$orderItemsData",
+                    as: "orderItem",
+                    in: {
+                      itemId: "$$orderItem.itemId",
+                      quantity: "$$orderItem.qty",
+                      priceAtOrderTime: "$$orderItem.priceAtOrderTime",
+                      gstAtOrderTime: { $ifNull: ["$$orderItem.gstAtOrderTime", 0] },
+                      name: {
+                        $let: {
+                          vars: {
+                            matchedItem: {
+                              $arrayElemAt: [
+                                {
+                                  $filter: {
+                                    input: "$itemDetails",
+                                    as: "item",
+                                    cond: { $eq: ["$$item._id", "$$orderItem.itemId"] }
+                                  }
+                                },
+                                0
+                              ]
+                            }
+                          },
+                          in: "$$matchedItem.name"
+                        }
+                      }
+                    }
+                  }
+                }
               }
             }
           ],
@@ -677,9 +725,185 @@ export const getAllOrders = async (req, res) => {
     }, "Orders retrieved successfully");
 
   } catch (error) {
-    logger.error('Get all orders failed', { 
+    logger.error('Get all orders failed', {
       error: error.message,
-      query: req.query 
+      query: req.query
+    });
+    throw error;
+  }
+};
+
+// ----------------------------------------------------------------------------
+// Get user's order history (User endpoint)
+export const getUserOrderHistory = async (req, res) => {
+  try {
+    const { uid } = req.user;
+    const { page = 1, limit = 20 } = req.query;
+
+    logger.info('User order history request', {
+      userId: uid,
+      page,
+      limit
+    });
+
+    // Validate pagination
+    const pageNum = Validator.validateNumber(page, 'Page', { min: 1, integer: true });
+    const limitNum = Math.min(50, Validator.validateNumber(limit, 'Limit', { min: 1, max: 50, integer: true }));
+    const skip = (pageNum - 1) * limitNum;
+
+    // Find all orders for this user
+    const [orders, total] = await Promise.all([
+      DatabaseUtil.find(Order, { uid }, {
+        select: '_id orderCounter orderStatus orderCompleted orderOtp amount createdAt updatedAt machineId',
+        populate: [
+          { path: 'machineId', select: 'mid name location' }
+        ],
+        sort: { createdAt: -1 },
+        limit: limitNum,
+        skip
+      }),
+      DatabaseUtil.countDocuments(Order, { uid })
+    ]);
+
+    const numOfPages = Math.ceil(total / limitNum);
+
+    // Fetch order items for each order
+    const orderIds = orders.map(order => order._id);
+    const orderItems = await DatabaseUtil.find(OrderItem, { orderId: { $in: orderIds } }, {
+      populate: [
+        { path: 'itemId', select: 'name desc price imgUrl' }
+      ]
+    });
+
+    // Group order items by orderId
+    const itemsByOrder = {};
+    orderItems.forEach(orderItem => {
+      const orderId = orderItem.orderId.toString();
+      if (!itemsByOrder[orderId]) {
+        itemsByOrder[orderId] = [];
+      }
+      itemsByOrder[orderId].push({
+        id: orderItem.itemId._id,
+        name: orderItem.itemId.name,
+        desc: orderItem.itemId.desc,
+        price: orderItem.priceAtOrderTime,
+        imgUrl: orderItem.itemId.imgUrl,
+        quantity: orderItem.qty
+      });
+    });
+
+    logger.info('User order history retrieved', {
+      userId: uid,
+      count: orders.length,
+      total,
+      page: pageNum
+    });
+
+    return ApiResponse.success(res, {
+      orders: orders.map(order => ({
+        oid: order._id,
+        orderCounter: order.orderCounter,
+        orderStatus: order.orderStatus,
+        orderCompleted: order.orderCompleted,
+        orderOtp: order.orderOtp,
+        amount: order.amount,
+        items: itemsByOrder[order._id.toString()] || [],
+        machineId: order.machineId?.mid || null,
+        machineName: order.machineId?.name || null,
+        machineLocation: order.machineId?.location || null,
+        createdAt: order.createdAt,
+        updatedAt: order.updatedAt
+      })),
+      pagination: {
+        currentPage: pageNum,
+        total,
+        numOfPages,
+        hasNextPage: pageNum < numOfPages,
+        hasPrevPage: pageNum > 1
+      }
+    }, "Order history retrieved successfully");
+
+  } catch (error) {
+    logger.error('Get user order history failed', {
+      error: error.message,
+      userId: req.user?.uid
+    });
+    throw error;
+  }
+};
+
+// ----------------------------------------------------------------------------
+// Get single order by ID
+export const getOrderById = async (req, res) => {
+  try {
+    const { uid } = req.user;
+    const { orderId } = req.params;
+
+    logger.info('Get order by ID request', {
+      userId: uid,
+      orderId
+    });
+
+    // Validate order ID format
+    if (!mongoose.Types.ObjectId.isValid(orderId)) {
+      throw new BadRequestError('Invalid order ID format');
+    }
+
+    // Find order and ensure it belongs to the user
+    const order = await DatabaseUtil.findOne(Order, { _id: orderId, uid }, {
+      select: '_id orderCounter orderStatus orderCompleted orderOtp amount createdAt updatedAt machineId',
+      populate: [
+        { path: 'machineId', select: 'mid name location' }
+      ]
+    });
+
+    if (!order) {
+      throw new NotFoundError('Order not found');
+    }
+
+    // Fetch order items
+    const orderItems = await DatabaseUtil.find(OrderItem, { orderId: order._id }, {
+      populate: [
+        { path: 'itemId', select: 'name desc price imgUrl' }
+      ]
+    });
+
+    const items = orderItems.map(orderItem => ({
+      id: orderItem.itemId._id,
+      name: orderItem.itemId.name,
+      desc: orderItem.itemId.desc,
+      price: orderItem.priceAtOrderTime,
+      imgUrl: orderItem.itemId.imgUrl,
+      quantity: orderItem.qty
+    }));
+
+    logger.info('Order retrieved successfully', {
+      userId: uid,
+      orderId: order._id
+    });
+
+    return ApiResponse.success(res, {
+      order: {
+        oid: order._id,
+        orderCounter: order.orderCounter,
+        orderStatus: order.orderStatus,
+        orderCompleted: order.orderCompleted,
+        orderOtp: order.orderOtp,
+        amount: order.amount,
+        items: items,
+        machineId: order.machineId?.mid || null,
+        machineName: order.machineId?.name || null,
+        machineLocation: order.machineId?.location || null,
+        createdAt: order.createdAt,
+        updatedAt: order.updatedAt
+      }
+    }, "Order retrieved successfully");
+
+  } catch (error) {
+    logger.error('Get order by ID failed', {
+      error: error.message,
+      userId: req.user?.uid,
+      orderId: req.params?.orderId
     });
     throw error;
   }

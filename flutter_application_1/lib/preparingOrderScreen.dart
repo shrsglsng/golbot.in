@@ -31,6 +31,9 @@ class _PreparingOrderScreenState extends State<PreparingOrderScreen> {
     final url = Uri.parse('${BASE_URL}machine/ready-for-pickup');
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString("token");
+    final machineData = prefs.getString("machine");
+    final mid = machineData != null ? jsonDecode(machineData)["mid"] : 'M01';
+
     try {
       final response = await http.post(
         url,
@@ -40,7 +43,7 @@ class _PreparingOrderScreenState extends State<PreparingOrderScreen> {
         },
         body: jsonEncode({
           'orderId': widget.order.sId,
-          'mid': widget.order.machineId ?? 'm01',
+          'mid': mid,
         }),
       );
       if (response.statusCode == 200) {
@@ -60,6 +63,9 @@ class _PreparingOrderScreenState extends State<PreparingOrderScreen> {
     final url = Uri.parse('${BASE_URL}machine/plate-dispensed');
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString("token");
+    final machineData = prefs.getString("machine");
+    final mid = machineData != null ? jsonDecode(machineData)["mid"] : 'M01';
+
     try {
       final response = await http.post(
         url,
@@ -69,7 +75,7 @@ class _PreparingOrderScreenState extends State<PreparingOrderScreen> {
         },
         body: jsonEncode({
           'oid': widget.order.sId,
-          'mid': widget.order.machineId ?? 'm01',
+          'mid': mid,
         }),
       );
       if (response.statusCode == 200) {
@@ -125,10 +131,15 @@ class _PreparingOrderScreenState extends State<PreparingOrderScreen> {
     );
 
     if (shouldCancel == true) {
+      // Get machine ID from SharedPreferences
+      final prefs = await SharedPreferences.getInstance();
+      final machineData = prefs.getString("machine");
+      final mid = machineData != null ? jsonDecode(machineData)["mid"] : 'M01';
+
       // Call cancel order API
       bool success = await cancelOrder(
         widget.order.sId ?? '',
-        widget.order.machineId ?? 'm01',
+        mid,
         'Order cancelled by machine operator',
         context
       );

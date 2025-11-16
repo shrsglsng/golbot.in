@@ -1,3 +1,4 @@
+import Head from "next/head"
 import Navbar from "../../shared/navbar"
 import Link from "next/link"
 import Image from "next/image"
@@ -6,33 +7,34 @@ import { useSelector, useDispatch } from "react-redux"
 import { selectOrder, clearOrder } from "../../redux/orderSlice"
 import { selectCart, clearCart } from "../../redux/cartSlice"
 import { ItemModel } from "../../models/itemModel"
-import { useEffect, useState } from "react"
-import { getLatestOrder } from "../../services/order"
+import { Card, CardContent } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Container } from "@/components/layout/Container"
+import { Stack } from "@/components/layout/Stack"
+import { CheckCircle, Home } from "lucide-react"
+import { ReportIssueButton } from "@/components/ReportIssueButton"
 
-function ItemRow({
-  itemName,
-  qty,
-  price,
-}: Readonly<{
+interface ItemRowProps {
   itemName: string
   qty: number
   price: number
-}>) {
+}
+
+function ItemRow({ itemName, qty, price }: ItemRowProps) {
+  if (qty === 0) return null
+
   return (
-    <div
-      className={`w-full p-3 pl-5 flex justify-between ${
-        qty == 0 ? "hidden" : ""
-      }`}>
-      <div className="flex">
-        <div className="mt-1">
-          <Image src="/vegIcon.svg" height={14} width={14} alt="" />
+    <div className="flex justify-between items-center py-2 px-4">
+      <div className="flex items-center gap-3">
+        <div className="flex-shrink-0">
+          <Image src="/vegIcon.svg" height={16} width={16} alt="Veg" />
         </div>
-        <div className="pl-3 m-0">
-          <span className="text-lg">{itemName}</span>{" "}
-          <span className="font-bold">x</span> {qty}
+        <div className="text-sm">
+          <span className="font-medium">{itemName}</span>
+          <span className="text-muted-foreground"> × {qty}</span>
         </div>
       </div>
-      <div className="font-bold">₹{price * qty}</div>
+      <div className="font-semibold">₹{(price * qty).toFixed(2)}</div>
     </div>
   )
 }
@@ -58,94 +60,107 @@ function ReceiptPage() {
 
   return (
     <>
-      <div className="w-full fixed top-0 z-10">
+      <Head>
+        <title>Order Complete - GolBot</title>
+        <meta name="description" content="Your order has been completed successfully" />
+      </Head>
+
+      <div className="min-h-screen">
         <Navbar />
-      </div>
-      <div className="w-full grid place-items-center">
-        <div className="w-full md:w-1/2 lg:w-1/4 h-screen p-5 flex flex-col items-center">
-          <div className="h-20" />
-          {/* Success Header */}
-          <div className="w-full text-center mb-6">
-            <div className="text-green-500 text-4xl mb-2">✅</div>
-            <div className="text-2xl font-bold text-gray-800 mb-2">
-              Order Complete!
+
+        <Container size="sm" className="py-24">
+          <Stack spacing="xl" align="center">
+            {/* Success Header */}
+            <div className="h-20 w-20 rounded-full bg-green-100 flex items-center justify-center animate-fade-in">
+              <CheckCircle className="h-10 w-10 text-green-600" />
             </div>
-            <div className="text-gray-600">
-              Thank you for your order. Enjoy your meal!
-            </div>
-          </div>
-          {/* Order Receipt */}
-          <div className="w-full m-5 border rounded-md flex flex-col bg-white shadow-lg">
-            {/* Header */}
-            <div className="bg-gray-50 p-4 border-b">
-              <div className="text-center font-semibold text-gray-700">Order Receipt</div>
-              {order?.oid && (
-                <div className="text-center text-sm text-gray-500 mt-1">
-                  Order ID: {order.oid.toString().slice(-8)}
+
+            <Stack spacing="sm" align="center">
+              <h1 className="text-3xl font-bold text-center">Order Complete!</h1>
+              <p className="text-muted-foreground text-center max-w-md">
+                Thank you for your order. Enjoy your meal!
+              </p>
+            </Stack>
+
+            {/* Order Receipt Card */}
+            <Card className="w-full shadow-xl animate-slide-in-from-bottom">
+              <CardContent className="p-0">
+                {/* Header */}
+                <div className="bg-muted/50 p-6 border-b">
+                  <Stack spacing="xs" align="center">
+                    <h2 className="font-semibold text-lg">Order Receipt</h2>
+                    {order?.oid && (
+                      <p className="text-sm text-muted-foreground">
+                        Order ID: {order.oid.toString().slice(-8)}
+                      </p>
+                    )}
+                  </Stack>
                 </div>
-              )}
-            </div>
-            {/* Items */}
-            {items.map((item: ItemModel) => (
-              <div key={item.id || item.name}>
-                <ItemRow
-                  itemName={item.name}
-                  //@ts-ignore
-                  qty={order?.itemQty?.[item.id] || item.quantity || 0}
-                  price={item.price}
+
+                {/* Items List */}
+                <div className="divide-y">
+                  {items.map((item: ItemModel) => (
+                    <ItemRow
+                      key={item.id || item.name}
+                      itemName={item.name}
+                      //@ts-ignore
+                      qty={order?.itemQty?.[item.id] || item.quantity || 0}
+                      price={item.price}
+                    />
+                  ))}
+                </div>
+
+                {/* Divider */}
+                <div className="px-6 py-4">
+                  <div className="border-t border-dashed" />
+                </div>
+
+                {/* Pricing Summary */}
+                <div className="px-6 pb-4 space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Item Total</span>
+                    <span className="font-medium">₹{order?.amount?.price ?? 0}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Taxes & Charges</span>
+                    <span className="font-medium">₹{order?.amount?.gst ?? 0}</span>
+                  </div>
+                </div>
+
+                {/* Total */}
+                <div className="bg-muted/50 px-6 py-4 border-t">
+                  <div className="flex justify-between items-center">
+                    <span className="font-bold text-lg">Total Amount</span>
+                    <span className="font-bold text-lg text-primary">
+                      ₹{order?.amount?.total ?? 0}
+                    </span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Action Buttons */}
+            <Stack spacing="md" className="w-full">
+              <Button onClick={handleGoHome} size="lg" className="w-full sm:w-auto">
+                <Home className="h-4 w-4" />
+                Go to Home
+              </Button>
+
+              {/* Report Issue Section */}
+              <div className="w-full border-t pt-6">
+                <p className="text-sm text-muted-foreground text-center mb-4">
+                  Had an issue with your order?
+                </p>
+                <ReportIssueButton
+                  orderId={order?.oid}
+                  machineId={router.query.mid as string}
+                  variant="destructive"
+                  size="lg"
                 />
               </div>
-            ))}
-            {/* Spacer */}
-            <div className="h-3" />
-            <div className="w-full grid place-items-center">
-              <div className="w-10/12 h-[1px] border-b-2 border-dashed border-gray-500" />
-            </div>
-            {/* Total and taxes */}
-            <div className="h-4" />
-            <div className="px-3 pl-5 flex justify-between">
-              <div className="text-gray-500">Price : </div>
-              <div className="font-semibold text-lg">
-                ₹{order?.amount?.price ?? 0}
-              </div>
-            </div>
-            <div className="h-1" />
-            <div className="px-3 pl-5 flex justify-between">
-              <div className="text-gray-500">Taxes : </div>
-              <div className="font-semibold text-lg">
-                ₹{order?.amount?.gst ?? 0}
-              </div>
-            </div>
-            <div className="h-3" />
-            <div className="p-3 pl-5 flex justify-between bg-gray-50">
-              <div className="font-bold text-lg">Total : </div>
-              <div className="font-semibold text-lg">
-                ₹{order?.amount?.total ?? 0}
-              </div>
-            </div>
-          </div>
-          {/* Action Buttons */}
-          <div className="flex gap-4 mt-6">
-            <button
-              onClick={handleGoHome}
-              className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-            >
-              Go to Home
-            </button>
-          </div>
-          <div className="h-6" />
-          {/* Help Section */}
-          <div className="text-center">
-            <div className="text-sm text-gray-500">
-              Having trouble?{" "}
-              <span className="text-red-500 underline">
-                <Link href={`/${router.query.mid}/reportIssue`}>
-                  Report an Issue
-                </Link>
-              </span>
-            </div>
-          </div>
-        </div>
+            </Stack>
+          </Stack>
+        </Container>
       </div>
     </>
   )

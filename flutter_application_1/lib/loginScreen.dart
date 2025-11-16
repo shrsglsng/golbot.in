@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_application_1/connectingScreen.dart';
 import 'package:flutter_application_1/services/auth.dart';
@@ -71,6 +72,14 @@ class _LoginScreenState extends State<LoginScreen> {
                       style: TextStyle(
                         color: Colors.black,
                       ),
+                      inputFormatters: [
+                        TextInputFormatter.withFunction(
+                          (oldValue, newValue) => TextEditingValue(
+                            text: newValue.text.toUpperCase(),
+                            selection: newValue.selection,
+                          ),
+                        ),
+                      ],
                       decoration: InputDecoration(
                         border: OutlineInputBorder(
                           borderSide: BorderSide(

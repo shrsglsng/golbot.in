@@ -2,11 +2,13 @@ import axios from "axios";
 
 export interface QRToken {
   tokenId: string;
+  token: string; // The actual token string
   label: string;
   createdAt: string;
   createdBy: string;
   isActive: boolean;
   status: "ACTIVE" | "REVOKED";
+  url?: string; // Optional URL field
 }
 
 export interface QRTokenGenerateResult {
@@ -50,7 +52,7 @@ export async function generateMachineQRToken(
 
     const res = await axios.post(
       url,
-      { label, baseUrl: baseUrl || process.env.NEXT_PUBLIC_APP_BASE_URL },
+      { label, baseUrl: baseUrl || process.env.NEXT_PUBLIC_USER_WEB_URL },
       {
         headers: {
           "Content-Type": "application/json",
@@ -174,4 +176,175 @@ export function downloadQRCode(url: string, machineId: string, format: "png" | "
 
   // This is a placeholder - actual implementation would generate and download the QR code
   alert(`QR code download for ${machineId}\nURL: ${url}\n\nImplement client-side QR generation with qrcode library`);
+}
+
+/**
+ * Update machine status (toggle online/offline)
+ */
+export async function updateMachineStatus(
+  machineId: string,
+  status: "CONNECTED" | "DISCONNECTED"
+): Promise<{ success: boolean; machine?: any; error?: string }> {
+  try {
+    const serverUrl = process.env.NEXT_PUBLIC_SERVER_URL;
+    if (!serverUrl) throw new Error("Server URL not set");
+
+    const token = localStorage.getItem("Token");
+    if (!token) throw new Error("Admin not authenticated");
+
+    const url = `${serverUrl}/admin/machines/${machineId}/status`;
+
+    const res = await axios.put(
+      url,
+      { mstatus: status },
+      {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+
+    if (res.status === 200 && res.data?.data?.machine) {
+      return {
+        success: true,
+        machine: res.data.data.machine
+      };
+    }
+
+    throw new Error("Unexpected response format");
+  } catch (error: any) {
+    console.error("❌ updateMachineStatus error:", error);
+    console.error("❌ Error response data:", error.response?.data);
+    console.error("❌ Error response status:", error.response?.status);
+
+    if (error.response?.status === 401) {
+      return {
+        success: false,
+        error: "AUTHENTICATION_REQUIRED"
+      };
+    }
+
+    if (error.response?.data?.message) {
+      return {
+        success: false,
+        error: error.response.data.message
+      };
+    }
+
+    return {
+      success: false,
+      error: error.message || "Failed to update machine status"
+    };
+  }
+}
+
+/**
+ * Soft delete a machine (deactivate)
+ */
+export async function softDeleteMachine(
+  machineId: string
+): Promise<{ success: boolean; machine?: any; error?: string }> {
+  try {
+    const serverUrl = process.env.NEXT_PUBLIC_SERVER_URL;
+    if (!serverUrl) throw new Error("Server URL not set");
+
+    const token = localStorage.getItem("Token");
+    if (!token) throw new Error("Admin not authenticated");
+
+    const url = `${serverUrl}/admin/machines/${machineId}`;
+
+    const res = await axios.delete(url, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (res.status === 200 && res.data?.data?.machine) {
+      return {
+        success: true,
+        machine: res.data.data.machine
+      };
+    }
+
+    throw new Error("Unexpected response format");
+  } catch (error: any) {
+    console.error("❌ softDeleteMachine error:", error);
+
+    if (error.response?.status === 401) {
+      return {
+        success: false,
+        error: "AUTHENTICATION_REQUIRED"
+      };
+    }
+
+    if (error.response?.data?.message) {
+      return {
+        success: false,
+        error: error.response.data.message
+      };
+    }
+
+    return {
+      success: false,
+      error: error.message || "Failed to delete machine"
+    };
+  }
+}
+
+/**
+ * Restore a soft deleted machine (reactivate)
+ */
+export async function restoreMachine(
+  machineId: string
+): Promise<{ success: boolean; machine?: any; error?: string }> {
+  try {
+    const serverUrl = process.env.NEXT_PUBLIC_SERVER_URL;
+    if (!serverUrl) throw new Error("Server URL not set");
+
+    const token = localStorage.getItem("Token");
+    if (!token) throw new Error("Admin not authenticated");
+
+    const url = `${serverUrl}/admin/machines/${machineId}/restore`;
+
+    const res = await axios.put(
+      url,
+      {},
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+
+    if (res.status === 200 && res.data?.data?.machine) {
+      return {
+        success: true,
+        machine: res.data.data.machine
+      };
+    }
+
+    throw new Error("Unexpected response format");
+  } catch (error: any) {
+    console.error("❌ restoreMachine error:", error);
+
+    if (error.response?.status === 401) {
+      return {
+        success: false,
+        error: "AUTHENTICATION_REQUIRED"
+      };
+    }
+
+    if (error.response?.data?.message) {
+      return {
+        success: false,
+        error: error.response.data.message
+      };
+    }
+
+    return {
+      success: false,
+      error: error.message || "Failed to restore machine"
+    };
+  }
 }

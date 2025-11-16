@@ -1,18 +1,36 @@
-// Helper to get order status from either ostatus or orderStatus
-function getOrderStatus(order: { ostatus?: string; orderStatus?: string }): string | undefined {
-  return order.ostatus ?? order.orderStatus;
-}
 import Head from "next/head"
-import { useEffect, useState } from "react"
-import { getLatestOrder } from "../../services/order"
-import { selectOrder, updateOrder } from "../../redux/orderSlice"
+import { useEffect, useState, useRef } from "react"
 import Image from "next/image"
 import { useRouter } from "next/router"
 import { useSelector, useDispatch } from "react-redux"
-import { selectCart, setItems, updateCart } from "../../redux/cartSlice"
+import { selectCart, setItems, updateCart, clearCart } from "../../redux/cartSlice"
 import { GetServerSideProps } from "next/types"
 import Navbar from "../../shared/navbar"
 import { ItemModel as BaseItemModel } from "../../models/itemModel"
+import { ProductCard } from "@/components/features/ProductCard"
+import { Button } from "@/components/ui/button"
+import { Container } from "@/components/layout/Container"
+import { Stack } from "@/components/layout/Stack"
+import { Card, CardContent } from "@/components/ui/card"
+import { Skeleton } from "@/components/ui/skeleton"
+import MachineBanner from "@/components/MachineBanner"
+import { saveMachineId, isAuthenticated } from "../../utils/machineStorage"
+import { Loader2, Search, ShoppingCart, ChevronRight, Minus, Plus } from "lucide-react"
+import { Input } from "@/components/ui/input"
+import { Badge } from "@/components/ui/badge"
+import { Separator } from "@/components/ui/separator"
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 
 // Extend base model to include frontend-specific fields
 type ExtendedItemModel = BaseItemModel & {
@@ -20,111 +38,84 @@ type ExtendedItemModel = BaseItemModel & {
   availableQty: number
 }
 
-function PuriCard({ item, index }: Readonly<{ item: ExtendedItemModel; index: number }>) {
-  const dispatch = useDispatch()
-
-  function handleBtnClick(action: "+" | "-") {
-    if (action === "+" && item.quantity < 10) {
-      dispatch(updateCart({ item: { ...item, quantity: item.quantity + 1 }, index }))
-    } else if (action === "-" && item.quantity > 0) {
-      dispatch(updateCart({ item: { ...item, quantity: item.quantity - 1 }, index }))
-    }
-  }
-
-  const renderControls = () => {
-    if (!item.isAvailable) {
-      return (
-        <div className="w-4/5 -mt-5 bg-zinc-200 border border-cblue rounded-md grid place-items-center text-xs text-zinc-500">
-          <span>Sold Out</span>
-        </div>
-      )
-    }
-
-    if (item.quantity === 0) {
-      return (
-        <button
-          onClick={() => handleBtnClick("+")}
-          className="w-4/5 -mt-5 bg-blue-50 border border-cblue rounded-md place-items-center grid"
-        >
-          <div className="w-full px-3 py-1 text-cblue text-center font-bold">Add</div>
-        </button>
-      )
-    }
-
-    return (
-      <div className="w-4/5 -mt-5 bg-cblue rounded-md place-items-center grid">
-        <div className="w-full px-3 py-1 flex justify-between items-center text-white">
-          <button onClick={() => handleBtnClick("-")}>−</button>
-          <div>{item.quantity}</div>
-          <button onClick={() => handleBtnClick("+")}>+</button>
-        </div>
-      </div>
-    )
-  }
-
-  return (
-    <div className="h-36 w-full p-5 flex">
-      <div className="flex-grow-[0.7] basis-0 flex flex-col">
-        <Image src="/vegIcon.svg" height={20} width={20} alt="Veg Icon" />
-        <div className="h-1" />
-        <div>{item.name}</div>
-        <div className="h-2" />
-        <div>₹{item.price}</div>
-        <div className="text-xs text-gray-500">{item.desc}</div>
-      </div>
-
-      <div className="flex-grow-[0.3] basis-0 flex flex-col justify-center">
-        <div className="relative h-full w-full">
-          {item.imgUrl ? (
-            <Image
-              src={"/paniPuri.png"}
-              alt={item.name}
-              fill
-              className="rounded-md object-cover"
-              sizes="(max-width: 768px) 120px, 140px"
-            />
-          ) : (
-            <div className="h-full w-full bg-gray-200 flex items-center justify-center rounded-md text-sm text-gray-500">
-              No Image
-            </div>
-          )}
-        </div>
-
-        <div className="w-full relative h-4 flex justify-center">{renderControls()}</div>
-      </div>
-    </div>
-  )
+interface MachineData {
+  mid: string;
+  location?: string;
+  mstatus?: string;
 }
 
-export default function Home({ allItems }: Readonly<{ allItems: ExtendedItemModel[] }>) {
+export default function Home({ allItems, machineData }: Readonly<{ allItems: ExtendedItemModel[], machineData?: MachineData }>) {
   const router = useRouter()
   const dispatch = useDispatch()
   const items = useSelector(selectCart) as ExtendedItemModel[]
-  const reduxOrder = useSelector(selectOrder)
   const { mid } = router.query
   const [total, setTotal] = useState(0)
   const [showOrderStrip, setShowOrderStrip] = useState(false)
-  const [pendingOrder, setPendingOrder] = useState<any>(null)
-  const [loadingOrder, setLoadingOrder] = useState(true)
-  // Fetch latest order on mount
-  useEffect(() => {
-    setLoadingOrder(true)
-    getLatestOrder().then((order) => {
-      console.log("Latest Order:", order)
-      const status = getOrderStatus(order || {});
-      if (order && ["PAID", "OTP_VERIFIED", "PREPARING", "READY_FOR_PICKUP"].includes(status || "")) {
-        setPendingOrder(order)
-        dispatch(updateOrder({ order }))
-      } else {
-        setPendingOrder(null)
-      }
-      setLoadingOrder(false)
-    })
-  }, [dispatch])
+  const [checkingAuth, setCheckingAuth] = useState(true)
+  const [searchQuery, setSearchQuery] = useState("")
+  const [selectedItem, setSelectedItem] = useState<ExtendedItemModel | null>(null)
+  const [isMobile, setIsMobile] = useState(false)
+  const initializedMachineRef = useRef<string | null>(null)
 
+  // Check authentication and save MID
   useEffect(() => {
-    dispatch(setItems({ allItems }))
-  }, [dispatch, allItems])
+    if (mid && typeof mid === 'string') {
+      // Save the MID to localStorage
+      saveMachineId(mid);
+
+      // Check if user is authenticated
+      if (!isAuthenticated()) {
+        console.log('User not authenticated, redirecting to login');
+        router.replace(`/auth/login?next=${mid}`);
+        return;
+      }
+
+      setCheckingAuth(false);
+    }
+  }, [mid, router]);
+
+  // Initialize cart with allItems, then restore saved cart from localStorage
+  useEffect(() => {
+    // Only initialize cart when machine ID is available and hasn't been initialized yet
+    if (mid && typeof mid === 'string' && allItems.length > 0 && initializedMachineRef.current !== mid) {
+      initializedMachineRef.current = mid
+
+      try {
+        const savedCart = localStorage.getItem(`golbot_cart_${mid}`)
+        if (savedCart) {
+          const parsedCart = JSON.parse(savedCart)
+          // Merge saved quantities with current items
+          const restoredItems = allItems.map(item => {
+            const savedItem = parsedCart.find((saved: any) => saved.id === item.id)
+            return savedItem ? { ...item, quantity: Math.min(savedItem.quantity, 10) } : item
+          })
+          dispatch(setItems({ allItems: restoredItems }))
+        } else {
+          // No saved cart, initialize with zero quantities
+          dispatch(setItems({ allItems }))
+        }
+      } catch (error) {
+        console.error('Error restoring cart from localStorage:', error)
+        dispatch(setItems({ allItems }))
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mid]) // Only run when machine ID changes
+
+  // Save cart to localStorage whenever items change
+  useEffect(() => {
+    if (mid && typeof mid === 'string' && items.length > 0) {
+      try {
+        // Only save items with quantity > 0
+        const itemsToSave = items
+          .filter(item => item.quantity > 0)
+          .map(item => ({ id: item.id, quantity: item.quantity }))
+        localStorage.setItem(`golbot_cart_${mid}`, JSON.stringify(itemsToSave))
+      } catch (error) {
+        console.error('Error saving cart to localStorage:', error)
+      }
+    }
+  }, [items, mid])
 
   useEffect(() => {
     let tmp = 0
@@ -136,11 +127,35 @@ export default function Home({ allItems }: Readonly<{ allItems: ExtendedItemMode
     setTotal(tmp)
   }, [items])
 
+  // Detect mobile screen size
+  useEffect(() => {
+    const checkIsMobile = () => {
+      setIsMobile(window.innerWidth < 768) // md breakpoint
+    }
+
+    checkIsMobile()
+    window.addEventListener('resize', checkIsMobile)
+
+    return () => window.removeEventListener('resize', checkIsMobile)
+  }, [])
+
   useEffect(() => {
     // Check if user came from order completion
     if (router.asPath.includes('fromOrderComplete=true')) {
       setShowOrderStrip(true)
-      
+
+      // Clear cart from localStorage after successful order
+      if (mid && typeof mid === 'string') {
+        try {
+          localStorage.removeItem(`golbot_cart_${mid}`)
+          // Reset cart in Redux
+          dispatch(clearCart())
+          dispatch(setItems({ allItems }))
+        } catch (error) {
+          console.error('Error clearing cart:', error)
+        }
+      }
+
       // Hide the strip after 10 seconds
       const stripTimeout = setTimeout(() => {
         setShowOrderStrip(false)
@@ -148,133 +163,568 @@ export default function Home({ allItems }: Readonly<{ allItems: ExtendedItemMode
 
       return () => clearTimeout(stripTimeout)
     }
-  }, [router.asPath])
+  }, [router.asPath, mid, dispatch, allItems])
 
-  // Show loading while checking for pending order
-  if (loadingOrder) {
+  // Filter items based on search query
+  const filteredItems = items.filter((item) => {
+    if (!searchQuery.trim()) return true
+    const query = searchQuery.toLowerCase()
     return (
-      <div className="w-full h-screen flex items-center justify-center">
-        <div className="text-lg text-gray-500">Checking your order status...</div>
+      item.name.toLowerCase().includes(query) ||
+      item.desc?.toLowerCase().includes(query)
+    )
+  })
+
+  const itemsInCart = items.filter(i => i.quantity > 0).length
+  const totalItems = items.reduce((acc, i) => acc + i.quantity, 0)
+
+  // Show loading while checking auth
+  if (checkingAuth) {
+    return (
+      <div className="w-full min-h-screen flex items-center justify-center">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
       </div>
     )
   }
 
-  // If a pending order exists, block new orders and show Resume Order button
-  if (pendingOrder) {
-    const status = getOrderStatus(pendingOrder);
-    let resumePath = `/${mid}`;
-    if (status === "PAID" && pendingOrder.orderOtp) {
-      resumePath = `/${mid}/qrPage`;
-    } else if (status === "OTP_VERIFIED" || status === "PREPARING") {
-      resumePath = `/${mid}/preparingOrder`;
-    } else if (status === "READY_FOR_PICKUP") {
-      resumePath = `/${mid}/preparingOrder`;
-    }
-    return (
-      <div className="w-full h-screen flex flex-col items-center justify-center bg-gray-50">
-        <Navbar />
-        <div className="flex flex-1 w-full items-center justify-center">
-          <div className="bg-white shadow-lg rounded-xl px-10 py-12 flex flex-col items-center max-w-md w-full border border-gray-200">
-            <div className="text-2xl font-bold mb-2 text-gray-800 text-center">You have a pending order</div>
-            <div className="mb-8 text-gray-600 text-center text-base">Please complete your current order before starting a new one.</div>
-            <button
-              onClick={() => router.push(resumePath)}
-              className="px-8 py-3 bg-blue-600 text-white rounded-md text-lg font-semibold shadow hover:bg-blue-700 transition"
-            >
-              Resume Order
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // No pending order, show normal menu
+  // Show normal menu
   return (
     <>
       <Head>
-        <title>GolBot</title>
-        <meta name="description" content="Generated by create next app" />
+        <title>Menu - GolBot</title>
+        <meta name="description" content="Order delicious snacks from GolBot vending machine" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <link rel="icon" href="/favicon.ico" />
       </Head>
 
-      <div className="w-full fixed top-0 z-10">
+      <div className="w-full fixed top-0 z-[45] bg-background/95 backdrop-blur-md border-b shadow-sm">
         <Navbar />
+        {machineData && (
+          <MachineBanner
+            machineId={machineData.mid}
+            location={machineData.location}
+            variant="compact"
+          />
+        )}
+        {/* Machine offline warning */}
+        {machineData && machineData.mstatus !== 'CONNECTED' && (
+          <div className="w-full bg-amber-50 dark:bg-amber-950 border-b border-amber-200 dark:border-amber-800 py-2.5 px-4">
+            <div className="flex items-center justify-center gap-2 text-amber-900 dark:text-amber-100">
+              <div className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
+              <p className="text-xs font-medium">Machine offline - Browse only mode</p>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Green strip for order completion */}
       {showOrderStrip && (
-        <div className="w-full bg-gradient-to-r from-green-600 to-green-500 text-white py-4 px-6 fixed top-16 z-10 shadow-md border-b border-green-400 animate-in slide-in-from-top-5 duration-500">
-          <div className="flex items-center justify-center space-x-3">
-            <div className="w-2 h-2 bg-white rounded-full animate-bounce"></div>
-            <div className="animate-in fade-in-50 duration-700 delay-200">
-              <p className="text-center font-semibold text-sm tracking-wide animate-pulse">
-                🍽️ Your order is being prepared
-              </p>
-            </div>
-            <div className="w-2 h-2 bg-white rounded-full animate-bounce animation-delay-300"></div>
-          </div>
-          {/* Progress bar animation */}
-          <div className="mt-2 w-full bg-green-700 bg-opacity-30 rounded-full h-1">
-            <div className="bg-white h-1 rounded-full animate-pulse"></div>
+        <div className="w-full bg-gradient-to-r from-emerald-500 to-green-500 text-white py-3 px-4 fixed top-[72px] z-[44] shadow-sm animate-in slide-in-from-top-2 duration-300">
+          <div className="flex items-center justify-center gap-2">
+            <div className="h-1.5 w-1.5 bg-white rounded-full animate-pulse" />
+            <p className="text-sm font-medium">Order is being prepared</p>
+            <div className="h-1.5 w-1.5 bg-white rounded-full animate-pulse" />
           </div>
         </div>
       )}
 
-      <div className="w-full grid place-items-center">
-        <div className="w-full md:w-1/2 lg:w-1/4 flex flex-col">
-          <div className="w-full flex flex-col overflow-y-auto">
-            <div className="h-20" />
-            <div className="h-64 py-5">
-              <div className="relative h-full w-full">
-                <Image 
-                  src={"/packed-food.webp"} 
-                  alt="Header Banner" 
-                  fill 
-                  priority
-                  sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 25vw"
-                />
+      <div className="min-h-screen bg-background">
+        <div className="w-full flex justify-center">
+          <div className="w-full md:w-1/2 lg:w-1/4 min-h-screen pb-32">
+            <div className="pt-[72px]">
+              {/* Search and Header Section */}
+              <div className="bg-background sticky top-[72px] z-[43] border-b shadow-sm">
+                <div className="p-4 space-y-3">
+                  <div>
+                    <h1 className="text-2xl font-bold tracking-tight">Menu</h1>
+                    <p className="text-sm text-muted-foreground">{items.filter(i => i.isAvailable).length} items available</p>
+                  </div>
+
+                  {/* Search Bar */}
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      type="text"
+                      placeholder="Search for items..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="pl-10 h-11 bg-muted/50 border-0 focus-visible:ring-1"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Product List */}
+              <div className="px-4 py-6">
+                {Array.isArray(filteredItems) && filteredItems.length > 0 ? (
+                  <div className="space-y-4">
+                    {filteredItems.map((item, i) => {
+                      const uniqueKey = item.id ? `item-${item.id}` : `item-index-${i}`;
+                      return (
+                        <ProductCard
+                          key={uniqueKey}
+                          item={item}
+                          index={i}
+                          onClick={() => {
+                            // Get fresh item from Redux store
+                            const freshItem = items.find(it => it.id === item.id);
+                            setSelectedItem(freshItem || item);
+                          }}
+                          onQuantityChange={(action) => {
+                            // Always get the latest item from Redux store, not from the closure
+                            const currentItem = items.find(it => it.id === item.id);
+                            const originalIndex = items.findIndex(it => it.id === item.id);
+
+                            if (!currentItem || originalIndex === -1) {
+                              console.error('❌ Item not found in cart:', item.name);
+                              return;
+                            }
+
+                            if (action === "+" && currentItem.quantity < 10) {
+                              const updatedItem = { ...currentItem, quantity: currentItem.quantity + 1 }
+                              dispatch(updateCart({ item: updatedItem, index: originalIndex }))
+                            } else if (action === "-" && currentItem.quantity > 0) {
+                              const updatedItem = { ...currentItem, quantity: currentItem.quantity - 1 }
+                              dispatch(updateCart({ item: updatedItem, index: originalIndex }))
+                            }
+                          }}
+                        />
+                      );
+                    })}
+                  </div>
+                ) : searchQuery.trim() ? (
+                  <div className="py-16 text-center">
+                    <div className="mx-auto w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
+                      <Search className="h-8 w-8 text-muted-foreground" />
+                    </div>
+                    <h3 className="text-lg font-semibold mb-1">No items found</h3>
+                    <p className="text-sm text-muted-foreground">Try searching with different keywords</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <Skeleton className="h-32 w-full rounded-xl" />
+                    <Skeleton className="h-32 w-full rounded-xl" />
+                    <Skeleton className="h-32 w-full rounded-xl" />
+                  </div>
+                )}
               </div>
             </div>
 
-            {Array.isArray(items) && items.length > 0 ? (
-              items.map((item, i) => {
-                const uniqueKey = item.id ? `item-${item.id}` : `item-index-${i}`;
-                return (
-                  <div key={uniqueKey}>
-                    <PuriCard item={item} index={i} />
-                    {i !== items.length - 1 && (
-                      <div className="h-2 bg-white grid place-items-center px-5">
-                        <div className="h-[0.5px] w-full bg-black" />
+            {/* Floating Cart Button - Swiggy/Zomato Style */}
+            {total > 0 && (
+              <div className="fixed bottom-0 left-0 right-0 md:left-1/2 md:right-auto md:w-1/2 lg:w-1/4 md:-translate-x-1/2 p-4 z-40 bg-gradient-to-t from-background via-background to-transparent pt-8 pointer-events-none">
+                <div className="pointer-events-auto">
+                  <Button
+                    onClick={() => router.push(`/${mid}/checkout`)}
+                    disabled={machineData?.mstatus !== 'CONNECTED'}
+                    size="lg"
+                    className="w-full h-16 text-base font-semibold shadow-2xl relative overflow-hidden group"
+                  >
+                    <div className="flex items-center justify-between w-full">
+                      <div className="flex items-center gap-3">
+                        <div className="h-10 w-10 rounded-lg bg-white/20 flex items-center justify-center backdrop-blur-sm">
+                          <ShoppingCart className="h-5 w-5" />
+                        </div>
+                        <div className="text-left">
+                          <div className="text-sm font-medium opacity-90">{itemsInCart} {itemsInCart === 1 ? 'item' : 'items'} • {totalItems} total</div>
+                          <div className="text-xs opacity-75">Added to cart</div>
+                        </div>
                       </div>
-                    )}
-                  </div>
-                );
-              })
-            ) : (
-              <div className="text-center text-gray-500 py-10">Loading menu...</div>
+                      <div className="flex items-center gap-2">
+                        <div className="text-right">
+                          <div className="text-lg font-bold">₹{Intl.NumberFormat("en-IN").format(total)}</div>
+                        </div>
+                        <ChevronRight className="h-5 w-5 group-hover:translate-x-1 transition-transform" />
+                      </div>
+                    </div>
+                  </Button>
+                </div>
+              </div>
             )}
 
-            <div className="flex-grow bg-gray-200" />
+            {/* Empty state when no items in cart */}
+            {total === 0 && (
+              <div className="fixed bottom-0 left-0 right-0 md:left-1/2 md:right-auto md:w-1/2 lg:w-1/4 md:-translate-x-1/2 p-4 z-40 bg-gradient-to-t from-background via-background to-transparent pt-8 pointer-events-none">
+                <div className="bg-muted/50 rounded-xl p-4 text-center border border-dashed pointer-events-auto">
+                  <p className="text-sm text-muted-foreground">Your cart is empty</p>
+                  <p className="text-xs text-muted-foreground mt-1">Add items to get started</p>
+                </div>
+              </div>
+            )}
           </div>
-          <div className="h-20" />
-        </div>
-
-        <div className="fixed bottom-0 w-full md:w-1/2 lg:w-1/4 p-3 bg-white">
-          <button
-            onClick={() => router.push(`/${mid}/checkout`)}
-            disabled={total <= 0}
-            className={`w-full p-3 rounded-md ${
-              total <= 0 ? "bg-cbluel" : "bg-cblue hover:bg-cbluel"
-            }`}
-          >
-            <div className="text-lg text-white">
-              Add to Order - ₹{Intl.NumberFormat("en-IN").format(total)}
-            </div>
-          </button>
         </div>
       </div>
+
+      {/* Detailed Item View - Responsive: Sheet for Mobile, Dialog for Desktop */}
+      {isMobile ? (
+        <Sheet open={!!selectedItem} onOpenChange={(open) => !open && setSelectedItem(null)}>
+          <SheetContent side="bottom" className="h-[85vh] p-0 rounded-t-3xl">
+            {selectedItem && (
+              <div className="h-full flex flex-col">
+              {/* Image Section with Gradient Overlay */}
+              <div className="relative h-64 w-full bg-gradient-to-br from-orange-100 to-red-100 flex-shrink-0">
+                {selectedItem.imgUrl ? (
+                  <Image
+                    src={"/paniPuri.png"}
+                    alt={selectedItem.name}
+                    fill
+                    className="object-cover"
+                    sizes="100vw"
+                  />
+                ) : (
+                  <div className="h-full w-full flex items-center justify-center text-9xl">
+                    🍽️
+                  </div>
+                )}
+
+                {/* Gradient Overlay */}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+
+                {/* Bestseller Badge */}
+                {items.findIndex(it => it.id === selectedItem.id) < 3 && (
+                  <div className="absolute top-4 left-4">
+                    <Badge className="bg-gradient-to-r from-orange-500 to-orange-600 text-white border-0 shadow-xl px-3 py-1.5">
+                      <span className="mr-1">⭐</span> Bestseller
+                    </Badge>
+                  </div>
+                )}
+
+                {/* Veg Indicator - Bottom Left */}
+                <div className="absolute bottom-4 left-4">
+                  <div className="flex items-center gap-2 bg-white/95 backdrop-blur-sm rounded-full px-3 py-1.5 shadow-lg">
+                    <div className="h-5 w-5 border-2 flex items-center justify-center rounded-sm border-green-600">
+                      <div className="h-2 w-2 rounded-full bg-green-600" />
+                    </div>
+                    <span className="text-xs font-semibold text-green-700">VEG</span>
+                  </div>
+                </div>
+
+                {/* Price Tag - Bottom Right */}
+                <div className="absolute bottom-4 right-4">
+                  <div className="bg-white/95 backdrop-blur-sm rounded-full px-4 py-2 shadow-xl">
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-2xl font-bold text-primary">₹{selectedItem.price}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Scrollable Content */}
+              <div className="flex-1 overflow-y-auto">
+                <div className="p-6 space-y-6">
+                  {/* Title Section */}
+                  <div>
+                    <SheetHeader>
+                      <SheetTitle className="text-3xl font-bold text-left mb-2">
+                        {selectedItem.name}
+                      </SheetTitle>
+                    </SheetHeader>
+                    {selectedItem.desc && (
+                      <p className="text-base text-muted-foreground leading-relaxed mt-2">
+                        {selectedItem.desc}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Availability Badge */}
+                  <div className="flex items-center gap-2">
+                    {selectedItem.isAvailable ? (
+                      <Badge variant="outline" className="border-green-500 text-green-700 bg-green-50">
+                        <div className="h-2 w-2 rounded-full bg-green-500 mr-2 animate-pulse" />
+                        Available Now
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="border-red-500 text-red-700 bg-red-50">
+                        <div className="h-2 w-2 rounded-full bg-red-500 mr-2" />
+                        Out of Stock
+                      </Badge>
+                    )}
+                  </div>
+
+                  <Separator />
+
+                  {/* Customization Note */}
+                  <div className="bg-gradient-to-r from-orange-50 to-yellow-50 border border-orange-200 rounded-xl p-4">
+                    <p className="text-sm text-orange-900 font-medium">
+                      💡 Fresh food prepared on-site just for you!
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Fixed Bottom Action Bar */}
+              <div className="flex-shrink-0 p-4 bg-background border-t shadow-2xl">
+                {selectedItem.quantity > 0 ? (
+                  <div className="space-y-3">
+                    {/* Quantity Counter */}
+                    <div className="flex items-center justify-between bg-gradient-to-r from-primary/10 to-primary/5 rounded-2xl p-3">
+                      <span className="text-sm font-semibold text-muted-foreground">Quantity</span>
+                      <div className="flex items-center gap-3 bg-primary text-white rounded-xl px-2 py-2 shadow-lg">
+                        <Button
+                          onClick={() => {
+                            const idx = items.findIndex(it => it.id === selectedItem.id)
+                            if (idx !== -1 && selectedItem.quantity > 0) {
+                              const updated = { ...selectedItem, quantity: selectedItem.quantity - 1 }
+                              dispatch(updateCart({ item: updated, index: idx }))
+                              setSelectedItem(updated)
+                            }
+                          }}
+                          variant="ghost"
+                          size="icon"
+                          className="h-10 w-10 hover:bg-white/20 text-white rounded-xl"
+                        >
+                          <Minus className="h-5 w-5 stroke-[3]" />
+                        </Button>
+                        <span className="text-xl font-bold min-w-[50px] text-center">
+                          {selectedItem.quantity}
+                        </span>
+                        <Button
+                          onClick={() => {
+                            const idx = items.findIndex(it => it.id === selectedItem.id)
+                            if (idx !== -1 && selectedItem.quantity < 10) {
+                              const updated = { ...selectedItem, quantity: selectedItem.quantity + 1 }
+                              dispatch(updateCart({ item: updated, index: idx }))
+                              setSelectedItem(updated)
+                            }
+                          }}
+                          variant="ghost"
+                          size="icon"
+                          className="h-10 w-10 hover:bg-white/20 text-white rounded-xl"
+                          disabled={selectedItem.quantity >= 10}
+                        >
+                          <Plus className="h-5 w-5 stroke-[3]" />
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* Total Price & Update Cart */}
+                    <Button
+                      size="lg"
+                      className="w-full h-14 text-base font-bold shadow-xl rounded-xl bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary"
+                      onClick={() => setSelectedItem(null)}
+                    >
+                      <div className="flex items-center justify-between w-full">
+                        <span>Update Cart</span>
+                        <div className="flex items-center gap-2">
+                          <span>₹{(selectedItem.price * selectedItem.quantity).toFixed(0)}</span>
+                          <ChevronRight className="h-5 w-5" />
+                        </div>
+                      </div>
+                    </Button>
+                  </div>
+                ) : (
+                  <Button
+                    onClick={() => {
+                      const idx = items.findIndex(it => it.id === selectedItem.id)
+                      if (idx !== -1) {
+                        const updated = { ...selectedItem, quantity: 1 }
+                        dispatch(updateCart({ item: updated, index: idx }))
+                        setSelectedItem(updated)
+                      }
+                    }}
+                    disabled={!selectedItem.isAvailable}
+                    size="lg"
+                    className="w-full h-14 text-base font-bold shadow-xl rounded-xl bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary"
+                  >
+                    <div className="flex items-center justify-between w-full">
+                      <span>Add to Cart</span>
+                      <div className="flex items-center gap-2">
+                        <span>₹{selectedItem.price}</span>
+                        <Plus className="h-5 w-5" />
+                      </div>
+                    </div>
+                  </Button>
+                )}
+              </div>
+              </div>
+            )}
+          </SheetContent>
+        </Sheet>
+      ) : (
+        <Dialog open={!!selectedItem} onOpenChange={(open) => !open && setSelectedItem(null)}>
+          <DialogContent className="max-w-2xl max-h-[90vh] p-0 overflow-hidden">
+            {selectedItem && (
+              <div className="flex flex-col max-h-[90vh]">
+                {/* Image Section with Gradient Overlay */}
+                <div className="relative h-56 w-full bg-gradient-to-br from-orange-100 to-red-100 flex-shrink-0">
+                  {selectedItem.imgUrl ? (
+                    <Image
+                      src={"/paniPuri.png"}
+                      alt={selectedItem.name}
+                      fill
+                      className="object-cover"
+                      sizes="(max-width: 768px) 100vw, 700px"
+                    />
+                  ) : (
+                    <div className="h-full w-full flex items-center justify-center text-8xl">
+                      🍽️
+                    </div>
+                  )}
+
+                  {/* Gradient Overlay */}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+
+                  {/* Bestseller Badge */}
+                  {items.findIndex(it => it.id === selectedItem.id) < 3 && (
+                    <div className="absolute top-4 left-4">
+                      <Badge className="bg-gradient-to-r from-orange-500 to-orange-600 text-white border-0 shadow-xl px-3 py-1.5">
+                        <span className="mr-1">⭐</span> Bestseller
+                      </Badge>
+                    </div>
+                  )}
+
+                  {/* Veg Indicator - Bottom Left */}
+                  <div className="absolute bottom-4 left-4">
+                    <div className="flex items-center gap-2 bg-white/95 backdrop-blur-sm rounded-full px-3 py-1.5 shadow-lg">
+                      <div className="h-5 w-5 border-2 flex items-center justify-center rounded-sm border-green-600">
+                        <div className="h-2 w-2 rounded-full bg-green-600" />
+                      </div>
+                      <span className="text-xs font-semibold text-green-700">VEG</span>
+                    </div>
+                  </div>
+
+                  {/* Price Tag - Bottom Right */}
+                  <div className="absolute bottom-4 right-4">
+                    <div className="bg-white/95 backdrop-blur-sm rounded-full px-4 py-2 shadow-xl">
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-2xl font-bold text-primary">₹{selectedItem.price}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Scrollable Content */}
+                <div className="flex-1 overflow-y-auto">
+                  <div className="p-6 space-y-6">
+                    {/* Title Section */}
+                    <div>
+                      <DialogHeader>
+                        <DialogTitle className="text-2xl font-bold text-left mb-2">
+                          {selectedItem.name}
+                        </DialogTitle>
+                      </DialogHeader>
+                      {selectedItem.desc && (
+                        <p className="text-sm text-muted-foreground leading-relaxed mt-2">
+                          {selectedItem.desc}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Availability Badge */}
+                    <div className="flex items-center gap-2">
+                      {selectedItem.isAvailable ? (
+                        <Badge variant="outline" className="border-green-500 text-green-700 bg-green-50">
+                          <div className="h-2 w-2 rounded-full bg-green-500 mr-2 animate-pulse" />
+                          Available Now
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="border-red-500 text-red-700 bg-red-50">
+                          <div className="h-2 w-2 rounded-full bg-red-500 mr-2" />
+                          Out of Stock
+                        </Badge>
+                      )}
+                    </div>
+
+                    <Separator />
+
+                    {/* Customization Note */}
+                    <div className="bg-gradient-to-r from-orange-50 to-yellow-50 border border-orange-200 rounded-xl p-4">
+                      <p className="text-sm text-orange-900 font-medium">
+                        💡 Fresh food prepared on-site just for you!
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Fixed Bottom Action Bar */}
+                <div className="flex-shrink-0 p-4 bg-background border-t">
+                  {selectedItem.quantity > 0 ? (
+                    <div className="space-y-3">
+                      {/* Quantity Counter */}
+                      <div className="flex items-center justify-between bg-gradient-to-r from-primary/10 to-primary/5 rounded-2xl p-3">
+                        <span className="text-sm font-semibold text-muted-foreground">Quantity</span>
+                        <div className="flex items-center gap-3 bg-primary text-white rounded-xl px-2 py-2 shadow-lg">
+                          <Button
+                            onClick={() => {
+                              const idx = items.findIndex(it => it.id === selectedItem.id)
+                              if (idx !== -1 && selectedItem.quantity > 0) {
+                                const updated = { ...selectedItem, quantity: selectedItem.quantity - 1 }
+                                dispatch(updateCart({ item: updated, index: idx }))
+                                setSelectedItem(updated)
+                              }
+                            }}
+                            variant="ghost"
+                            size="icon"
+                            className="h-10 w-10 hover:bg-white/20 text-white rounded-xl"
+                          >
+                            <Minus className="h-5 w-5 stroke-[3]" />
+                          </Button>
+                          <span className="text-xl font-bold min-w-[50px] text-center">
+                            {selectedItem.quantity}
+                          </span>
+                          <Button
+                            onClick={() => {
+                              const idx = items.findIndex(it => it.id === selectedItem.id)
+                              if (idx !== -1 && selectedItem.quantity < 10) {
+                                const updated = { ...selectedItem, quantity: selectedItem.quantity + 1 }
+                                dispatch(updateCart({ item: updated, index: idx }))
+                                setSelectedItem(updated)
+                              }
+                            }}
+                            variant="ghost"
+                            size="icon"
+                            className="h-10 w-10 hover:bg-white/20 text-white rounded-xl"
+                            disabled={selectedItem.quantity >= 10}
+                          >
+                            <Plus className="h-5 w-5 stroke-[3]" />
+                          </Button>
+                        </div>
+                      </div>
+
+                      {/* Total Price & Update Cart */}
+                      <Button
+                        size="lg"
+                        className="w-full h-14 text-base font-bold shadow-xl rounded-xl bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary"
+                        onClick={() => setSelectedItem(null)}
+                      >
+                        <div className="flex items-center justify-between w-full">
+                          <span>Update Cart</span>
+                          <div className="flex items-center gap-2">
+                            <span>₹{(selectedItem.price * selectedItem.quantity).toFixed(0)}</span>
+                            <ChevronRight className="h-5 w-5" />
+                          </div>
+                        </div>
+                      </Button>
+                    </div>
+                  ) : (
+                    <Button
+                      onClick={() => {
+                        const idx = items.findIndex(it => it.id === selectedItem.id)
+                        if (idx !== -1) {
+                          const updated = { ...selectedItem, quantity: 1 }
+                          dispatch(updateCart({ item: updated, index: idx }))
+                          setSelectedItem(updated)
+                        }
+                      }}
+                      disabled={!selectedItem.isAvailable}
+                      size="lg"
+                      className="w-full h-14 text-base font-bold shadow-xl rounded-xl bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary"
+                    >
+                      <div className="flex items-center justify-between w-full">
+                        <span>Add to Cart</span>
+                        <div className="flex items-center gap-2">
+                          <span>₹{selectedItem.price}</span>
+                          <Plus className="h-5 w-5" />
+                        </div>
+                      </div>
+                    </Button>
+                  )}
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+      )}
     </>
   )
 }
@@ -294,18 +744,41 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
     return { notFound: true };
   }
 
+  const machineJson = await machineRes.json();
+
+  // Extract machine data from API response (wrapped in .data)
+  const machineInfo = machineJson?.data || machineJson;
+
+  // Debug logging
+  console.log('[SSR] Machine data fetched:', {
+    mid: machineInfo?.mid,
+    mstatus: machineInfo?.mstatus,
+    location: machineInfo?.location,
+    fullResponse: machineJson
+  });
+
+  const machineData: MachineData | null = machineInfo?.mid ? {
+    mid: machineInfo.mid,
+    location: machineInfo.location,
+    mstatus: machineInfo.mstatus
+  } : null;
+
   const itemsRes = await fetch(`${process.env.NEXT_PUBLIC_SERVER_URL}/getAllItems`);
   const json = await itemsRes.json();
   const rawItems = json.data?.items ?? [];
 
-  const allItems: ExtendedItemModel[] = rawItems.map((item: BaseItemModel) => ({
+  const allItems: ExtendedItemModel[] = rawItems.map((item: any) => ({
     ...item,
+    id: item._id || item.id, // Map MongoDB _id to id
     availableQty: item.qtyLeft ?? 0,
     quantity: 0,
   }));
 
   return {
-    props: { allItems },
+    props: {
+      allItems,
+      machineData
+    },
   };
 };
 

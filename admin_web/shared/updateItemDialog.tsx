@@ -45,7 +45,10 @@ export function UpdateItemDialog({
       if (res.status === 200) {
         alert("Items updated successfully")
       }
-    } catch (e: any) {}
+    } catch (e: any) {
+      console.error("Failed to update item:", e);
+      alert("Failed to update item. Please try again.");
+    }
 
     updatePage()
     setOpen(false)
@@ -95,13 +98,14 @@ export function UpdateItemDialog({
           <div className="pl-1 pb-1 text-black font-bold">Price</div>
           <input
             className="p-2 px-5 border border-cbluel rounded-lg focus:border-cblue focus:border-2"
-            type="text"
-            // value={inputfields.price.toString()}
+            type="number"
+            step="0.01"
+            value={inputfields.price}
             placeholder={item.price.toString()}
             onChange={(e) =>
               setInputFields((f) => ({
                 ...f,
-                price: parseFloat(e.target.value),
+                price: parseFloat(e.target.value) || 0,
               }))
             }
           />
@@ -110,11 +114,12 @@ export function UpdateItemDialog({
           <div className="pl-1 pb-1 text-black font-bold">GST</div>
           <input
             className="p-2 px-5 border border-cbluel rounded-lg focus:border-cblue focus:border-2"
-            type="text"
-            // value={inputfields.gst.toString()}
+            type="number"
+            step="0.01"
+            value={inputfields.gst}
             placeholder={item.gst.toString()}
             onChange={(e) =>
-              setInputFields((f) => ({ ...f, gst: parseFloat(e.target.value) }))
+              setInputFields((f) => ({ ...f, gst: parseFloat(e.target.value) || 0 }))
             }
           />
         </div>

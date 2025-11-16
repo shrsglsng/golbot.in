@@ -158,13 +158,13 @@ export class Validator {
     if (!machineId || typeof machineId !== 'string') {
       throw new ValidationError('Machine ID is required');
     }
-    
-    const cleanId = machineId.trim();
-    
+
+    const cleanId = machineId.trim().toUpperCase(); // Normalize to uppercase
+
     if (cleanId.length < 3 || cleanId.length > 20) {
       throw new ValidationError('Machine ID must be between 3-20 characters');
     }
-    
+
     return cleanId;
   }
 

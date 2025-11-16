@@ -1,9 +1,13 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import { PulseLoader } from 'react-spinners';
+import { useDispatch } from 'react-redux';
+import { clearCart } from '../../../redux/cartSlice';
+import { getLatestOrder } from '../../../services/order';
 
 export default function PaymentRedirect() {
   const router = useRouter();
+  const dispatch = useDispatch();
   const { orderId } = router.query;
   const [status, setStatus] = useState('processing');
   const [message, setMessage] = useState('Verifying your payment...');
@@ -44,48 +48,137 @@ export default function PaymentRedirect() {
         if (verifyRes.status === 200 && verifyData.success) {
           console.log('✅ Payment verification successful');
           setStatus('success');
-          setMessage('Payment successful! Redirecting...');
-          
-          // Clean up session storage
-          sessionStorage.removeItem('pendingOrderId');
-          sessionStorage.removeItem('pendingMachineId');
-          
-          // Redirect to success page
-          setTimeout(() => {
-            if (machineId) {
-              router.replace(`/${machineId}/payment/${orderId}/success`);
+          setMessage('Payment successful! Redirecting to your order...');
+
+          // Fetch the latest order
+          try {
+            const latestOrder = await getLatestOrder();
+
+            if (latestOrder) {
+              // Clear cart from localStorage and Redux
+              if (machineId) {
+                try {
+                  localStorage.removeItem(`golbot_cart_${machineId}`);
+                  dispatch(clearCart());
+                  console.log('Cart cleared after successful payment');
+                } catch (error) {
+                  console.error('Error clearing cart:', error);
+                }
+              }
+
+              // Store order in sessionStorage for detail page
+              sessionStorage.setItem(`order_${latestOrder.oid}`, JSON.stringify(latestOrder));
+
+              // Clean up pending session storage
+              sessionStorage.removeItem('pendingOrderId');
+              sessionStorage.removeItem('pendingMachineId');
+
+              // Redirect directly to order detail page
+              setTimeout(() => {
+                router.replace(`/orders/${latestOrder.oid}`);
+              }, 1500);
             } else {
-              router.replace(`/payment/${orderId}/success`);
+              // Fallback to myOrders if can't fetch order
+              setTimeout(() => {
+                router.replace('/myOrders');
+              }, 1500);
             }
-          }, 2000);
+          } catch (error) {
+            console.error('Error fetching order:', error);
+            // Fallback to myOrders on error
+            setTimeout(() => {
+              router.replace('/myOrders');
+            }, 1500);
+          }
         } else {
           console.error('❌ Payment verification failed:', verifyData);
           setStatus('failed');
           setMessage(verifyData.message || 'Payment verification failed');
-          
-          // Redirect to failure page
-          setTimeout(() => {
-            if (machineId) {
-              router.replace(`/${machineId}/payment/${orderId}/failed`);
-            } else {
-              router.replace(`/payment/${orderId}/failed`);
+
+          // Clear cart since payment failed
+          if (machineId) {
+            try {
+              localStorage.removeItem(`golbot_cart_${machineId}`);
+              dispatch(clearCart());
+              console.log('Cart cleared after payment failure');
+            } catch (error) {
+              console.error('Error clearing cart:', error);
             }
-          }, 3000);
+          }
+
+          // Try to fetch the order and redirect to order detail page
+          try {
+            const latestOrder = await getLatestOrder();
+            if (latestOrder) {
+              // Store order in sessionStorage for detail page
+              sessionStorage.setItem(`order_${latestOrder.oid}`, JSON.stringify(latestOrder));
+
+              // Clean up pending session storage
+              sessionStorage.removeItem('pendingOrderId');
+              sessionStorage.removeItem('pendingMachineId');
+
+              // Redirect to order detail page to show failed status
+              setTimeout(() => {
+                router.replace(`/orders/${latestOrder.oid}`);
+              }, 2000);
+            } else {
+              // Fallback to menu page if can't fetch order
+              setTimeout(() => {
+                if (machineId) {
+                  router.replace(`/${machineId}`);
+                } else {
+                  router.replace('/');
+                }
+              }, 2000);
+            }
+          } catch (error) {
+            console.error('Error fetching failed order:', error);
+            // Fallback to menu page on error
+            setTimeout(() => {
+              if (machineId) {
+                router.replace(`/${machineId}`);
+              } else {
+                router.replace('/');
+              }
+            }, 2000);
+          }
         }
       } catch (error) {
         console.error('❌ Payment verification error:', error);
         setStatus('error');
         setMessage('Failed to verify payment. Please contact support.');
-        
-        // Redirect to failure page after error
-        setTimeout(() => {
-          const machineId = sessionStorage.getItem('pendingMachineId');
-          if (machineId) {
-            router.replace(`/${machineId}/payment/${orderId}/failed`);
-          } else {
-            router.replace(`/payment/${orderId}/failed`);
+
+        // Clear cart on error as well
+        if (machineId) {
+          try {
+            localStorage.removeItem(`golbot_cart_${machineId}`);
+            dispatch(clearCart());
+            console.log('Cart cleared after payment verification error');
+          } catch (error) {
+            console.error('Error clearing cart:', error);
           }
-        }, 5000);
+        }
+
+        // Try to fetch order and redirect to detail page, or fallback to menu
+        setTimeout(async () => {
+          const machineIdFromSession = sessionStorage.getItem('pendingMachineId');
+          try {
+            const latestOrder = await getLatestOrder();
+            if (latestOrder) {
+              sessionStorage.setItem(`order_${latestOrder.oid}`, JSON.stringify(latestOrder));
+
+              // Clean up pending session storage
+              sessionStorage.removeItem('pendingOrderId');
+              sessionStorage.removeItem('pendingMachineId');
+
+              router.replace(`/orders/${latestOrder.oid}`);
+            } else {
+              router.replace(machineIdFromSession ? `/${machineIdFromSession}` : '/');
+            }
+          } catch {
+            router.replace(machineIdFromSession ? `/${machineIdFromSession}` : '/');
+          }
+        }, 3000);
       }
     };
 
@@ -125,7 +218,7 @@ export default function PaymentRedirect() {
           <div className="mb-4">
             <div className="text-4xl mb-2">{getStatusIcon()}</div>
             <h1 className="text-2xl font-bold text-gray-800 mb-2">
-              Payment Processing
+              {status === 'success' ? 'Payment Successful!' : 'Payment Processing'}
             </h1>
             <p className={`text-lg ${getStatusColor()}`}>
               {message}

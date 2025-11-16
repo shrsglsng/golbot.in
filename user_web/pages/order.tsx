@@ -1,8 +1,17 @@
+import Head from "next/head"
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import Navbar from "../shared/navbar";
-import { PulseLoader } from "react-spinners";
 import { resolveMachineFromToken, getMachineById, isValidMachineCodeFormat, MachineInfo } from "../services/machine";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Container } from "@/components/layout/Container";
+import { Stack } from "@/components/layout/Stack";
+import { CheckCircle2, XCircle, Loader2, QrCode, ArrowRight } from "lucide-react";
+import { toast } from "@/hooks/use-toast";
+import { getSavedMachineId } from "../utils/machineStorage";
 
 export default function OrderPage() {
   const router = useRouter();
@@ -13,6 +22,18 @@ export default function OrderPage() {
   const [machine, setMachine] = useState<MachineInfo | null>(null);
   const [machineCode, setMachineCode] = useState("");
   const [validatingCode, setValidatingCode] = useState(false);
+  const [savedMachineId, setSavedMachineId] = useState<string | null>(null);
+  const [showManualEntry, setShowManualEntry] = useState(false);
+
+  // Check for saved machine ID on mount
+  useEffect(() => {
+    const saved = getSavedMachineId();
+    if (saved) {
+      setSavedMachineId(saved);
+    } else {
+      setShowManualEntry(true); // Show manual entry if no saved machine
+    }
+  }, []);
 
   // Handle QR code token validation on page load
   useEffect(() => {
@@ -32,6 +53,7 @@ export default function OrderPage() {
       if (result.success && result.machine) {
         setMachine(result.machine);
         setLoading(false);
+        toast.success("Machine found!", `Redirecting to ${result.machine.id}...`);
 
         // Auto-redirect to menu page after successful validation
         setTimeout(() => {
@@ -39,13 +61,15 @@ export default function OrderPage() {
         }, 1500);
       } else {
         setLoading(false);
-        setError(
-          result.message || "This QR code is invalid or has been deactivated. Please try another machine or enter a machine code manually."
-        );
+        const errorMsg = result.message || "This QR code is invalid or has been deactivated.";
+        setError(errorMsg);
+        toast.error("QR Code Invalid", errorMsg);
       }
     } catch (err: any) {
       setLoading(false);
-      setError("Failed to validate QR code. Please try again or enter a machine code manually.");
+      const errorMsg = "Failed to validate QR code. Please try again.";
+      setError(errorMsg);
+      toast.error("Validation Failed", errorMsg);
     }
   };
 
@@ -56,12 +80,12 @@ export default function OrderPage() {
     const code = machineCode.trim().toUpperCase();
 
     if (!code) {
-      setError("Please enter a machine code");
+      toast.error("Error", "Please enter a machine code");
       return;
     }
 
     if (!isValidMachineCodeFormat(code)) {
-      setError("Invalid machine code format. Machine codes look like M01, M02, etc.");
+      toast.error("Invalid Format", "Machine codes look like M01, M02, etc.");
       return;
     }
 
@@ -74,6 +98,7 @@ export default function OrderPage() {
       if (result.success && result.machine) {
         setMachine(result.machine);
         setValidatingCode(false);
+        toast.success("Machine found!", `Redirecting to ${result.machine.id}...`);
 
         // Redirect to menu page
         setTimeout(() => {
@@ -81,142 +106,208 @@ export default function OrderPage() {
         }, 1000);
       } else {
         setValidatingCode(false);
-        setError(
-          result.message || `Machine ${code} not found or is unavailable. Please check the code and try again.`
-        );
+        const errorMsg = result.message || `Machine ${code} not found or is unavailable.`;
+        setError(errorMsg);
+        toast.error("Not Found", errorMsg);
       }
     } catch (err: any) {
       setValidatingCode(false);
-      setError("Failed to validate machine code. Please try again.");
+      const errorMsg = "Failed to validate machine code. Please try again.";
+      setError(errorMsg);
+      toast.error("Validation Failed", errorMsg);
     }
   };
 
   return (
     <>
-      <div className="w-full fixed top-0 z-10">
+      <Head>
+        <title>Start Order - GolBot</title>
+        <meta name="description" content="Start your order by scanning QR or entering machine code" />
+      </Head>
+
+      <div className="min-h-screen bg-gradient-to-b from-background to-muted/20">
         <Navbar />
-      </div>
 
-      <div className="w-full min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="w-full md:w-1/2 lg:w-1/3 p-6 mt-16">
-          <div className="bg-white rounded-lg shadow-md p-6">
-            {/* QR Code Validation State */}
-            {mt && loading && (
-              <div className="text-center">
-                <PulseLoader color="#3B82F6" size={15} />
-                <p className="mt-4 text-gray-600">Validating QR code...</p>
-              </div>
-            )}
-
-            {/* QR Code Success State */}
-            {mt && machine && !loading && (
-              <div className="text-center">
-                <div className="flex justify-center mb-4">
-                  <svg
-                    className="w-16 h-16 text-green-500"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                    />
-                  </svg>
-                </div>
-                <h2 className="text-xl font-semibold text-gray-800 mb-2">
-                  Machine Found!
-                </h2>
-                <p className="text-gray-600 mb-1">
-                  <span className="font-medium">{machine.id}</span>
-                </p>
-                {machine.location && (
-                  <p className="text-sm text-gray-500 mb-4">{machine.location}</p>
-                )}
-                <p className="text-sm text-gray-500">Redirecting to menu...</p>
-              </div>
-            )}
-
-            {/* QR Code Error State */}
-            {mt && error && !loading && (
-              <div>
-                <div className="flex justify-center mb-4">
-                  <svg
-                    className="w-16 h-16 text-red-500"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                    />
-                  </svg>
-                </div>
-                <h2 className="text-xl font-semibold text-gray-800 mb-3 text-center">
-                  QR Code Invalid
-                </h2>
-                <p className="text-red-600 text-sm mb-6 text-center">{error}</p>
-
-                {/* Fallback to manual entry */}
-                <div className="border-t pt-6">
-                  <p className="text-sm text-gray-600 mb-4 text-center">
-                    Enter a machine code manually:
-                  </p>
-                  <ManualEntryForm
-                    machineCode={machineCode}
-                    setMachineCode={setMachineCode}
-                    validatingCode={validatingCode}
-                    onSubmit={handleMachineCodeSubmit}
-                  />
-                </div>
-              </div>
-            )}
-
-            {/* Manual Entry State (no QR code) */}
-            {!mt && (
-              <div>
-                <h2 className="text-2xl font-bold text-gray-800 mb-2 text-center">
-                  Welcome to GolBot
-                </h2>
-                <p className="text-gray-600 mb-6 text-center">
-                  Scan the QR code on a machine or enter the machine code below
-                </p>
-
-                {error && (
-                  <div className="bg-red-50 border border-red-200 rounded-md p-3 mb-4">
-                    <p className="text-red-700 text-sm">{error}</p>
-                  </div>
-                )}
-
-                {machine && !validatingCode && (
-                  <div className="bg-green-50 border border-green-200 rounded-md p-3 mb-4">
-                    <p className="text-green-700 text-sm text-center">
-                      Redirecting to {machine.id}...
-                    </p>
-                  </div>
-                )}
-
-                <ManualEntryForm
-                  machineCode={machineCode}
-                  setMachineCode={setMachineCode}
-                  validatingCode={validatingCode}
-                  onSubmit={handleMachineCodeSubmit}
-                />
-
-                <div className="mt-6 text-center">
-                  <p className="text-xs text-gray-500">
-                    Machine codes look like: <span className="font-mono font-semibold">M01</span>, <span className="font-mono font-semibold">M02</span>, etc.
-                  </p>
-                </div>
-              </div>
-            )}
-          </div>
+        {/* Hero Section */}
+        <div className="relative bg-gradient-to-r from-primary to-primary-dark text-white py-16 mt-[72px]">
+          <Container size="lg">
+            <div className="text-center space-y-3 animate-fade-in">
+              <h1 className="text-3xl md:text-4xl font-bold">
+                Start Your Order
+              </h1>
+              <p className="text-base md:text-lg text-white/90 max-w-2xl mx-auto">
+                Scan the QR code on your vending machine or enter the machine code below
+              </p>
+            </div>
+          </Container>
         </div>
+
+        <Container size="sm" className="py-16">
+          <Card className="shadow-2xl animate-fade-in border-none">
+            <CardContent className="p-8 md:p-12">
+              {/* QR Code Validation State */}
+              {mt && loading && (
+                <Stack spacing="lg" align="center">
+                  <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center">
+                    <Loader2 className="h-8 w-8 text-primary animate-spin" />
+                  </div>
+                  <Stack spacing="sm" align="center">
+                    <h2 className="text-xl font-semibold">Validating QR Code</h2>
+                    <p className="text-muted-foreground text-sm">Please wait...</p>
+                  </Stack>
+                </Stack>
+              )}
+
+              {/* QR Code Success State */}
+              {mt && machine && !loading && (
+                <Stack spacing="lg" align="center">
+                  <div className="h-16 w-16 rounded-full bg-green-100 flex items-center justify-center animate-fade-in">
+                    <CheckCircle2 className="h-8 w-8 text-green-600" />
+                  </div>
+                  <Stack spacing="sm" align="center">
+                    <h2 className="text-xl font-semibold">Machine Found!</h2>
+                    <p className="text-lg font-medium text-primary">{machine.id}</p>
+                    {machine.location && (
+                      <p className="text-sm text-muted-foreground">{machine.location}</p>
+                    )}
+                    <p className="text-sm text-muted-foreground">Redirecting to menu...</p>
+                  </Stack>
+                </Stack>
+              )}
+
+              {/* QR Code Error State */}
+              {mt && error && !loading && (
+                <Stack spacing="lg">
+                  <Stack spacing="lg" align="center">
+                    <div className="h-16 w-16 rounded-full bg-destructive/10 flex items-center justify-center">
+                      <XCircle className="h-8 w-8 text-destructive" />
+                    </div>
+                    <Stack spacing="sm" align="center">
+                      <h2 className="text-xl font-semibold">QR Code Invalid</h2>
+                      <p className="text-sm text-muted-foreground text-center max-w-md">
+                        {error}
+                      </p>
+                    </Stack>
+                  </Stack>
+
+                  <div className="border-t pt-6">
+                    <p className="text-sm text-muted-foreground mb-4 text-center">
+                      Enter a machine code manually:
+                    </p>
+                    <ManualEntryForm
+                      machineCode={machineCode}
+                      setMachineCode={setMachineCode}
+                      validatingCode={validatingCode}
+                      onSubmit={handleMachineCodeSubmit}
+                    />
+                  </div>
+                </Stack>
+              )}
+
+              {/* Manual Entry State (no QR code) */}
+              {!mt && (
+                <div className="space-y-8">
+                  {/* Show saved machine option if available */}
+                  {savedMachineId && !showManualEntry && (
+                    <div className="space-y-6">
+                      <div className="text-center space-y-3">
+                        <div className="inline-flex h-16 w-16 rounded-2xl bg-primary/10 items-center justify-center mx-auto">
+                          <QrCode className="h-7 w-7 text-primary" strokeWidth={2} />
+                        </div>
+                        <div>
+                          <h2 className="text-2xl font-semibold mb-1.5">Continue to</h2>
+                          <p className="text-3xl font-bold text-primary font-mono">{savedMachineId}</p>
+                        </div>
+                      </div>
+
+                      <Button
+                        onClick={() => router.push(`/${savedMachineId}`)}
+                        size="lg"
+                        className="w-full h-14 text-base font-semibold group"
+                      >
+                        Continue to Menu
+                        <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
+                      </Button>
+
+                      <div className="relative">
+                        <div className="absolute inset-0 flex items-center">
+                          <span className="w-full border-t" />
+                        </div>
+                        <div className="relative flex justify-center text-xs uppercase">
+                          <span className="bg-background px-2 text-muted-foreground">Or</span>
+                        </div>
+                      </div>
+
+                      <Button
+                        onClick={() => setShowManualEntry(true)}
+                        variant="outline"
+                        size="lg"
+                        className="w-full h-12"
+                      >
+                        Use Different Machine
+                      </Button>
+                    </div>
+                  )}
+
+                  {/* Manual entry form */}
+                  {(!savedMachineId || showManualEntry) && (
+                    <>
+                      <div className="text-center space-y-3">
+                        <div className="inline-flex h-16 w-16 rounded-2xl bg-primary/5 items-center justify-center mx-auto backdrop-blur-sm">
+                          <QrCode className="h-7 w-7 text-primary/70" strokeWidth={1.5} />
+                        </div>
+                        <div>
+                          <h2 className="text-2xl font-semibold mb-1.5 text-foreground/90">
+                            {savedMachineId ? "Enter New Machine Code" : "Enter Machine Code"}
+                          </h2>
+                          <p className="text-sm text-muted-foreground/80">
+                            Find the code displayed on your vending machine
+                          </p>
+                        </div>
+                      </div>
+
+                      <ManualEntryForm
+                        machineCode={machineCode}
+                        setMachineCode={setMachineCode}
+                        validatingCode={validatingCode}
+                        onSubmit={handleMachineCodeSubmit}
+                      />
+
+                      {savedMachineId && (
+                        <Button
+                          onClick={() => setShowManualEntry(false)}
+                          variant="ghost"
+                          className="w-full"
+                        >
+                          ← Back to Saved Machine
+                        </Button>
+                      )}
+
+                      <div className="pt-4 space-y-3">
+                        <div className="text-center">
+                          <p className="text-xs font-medium text-muted-foreground/60 uppercase tracking-wider mb-3">
+                            Example Codes
+                          </p>
+                        </div>
+                        <div className="flex gap-3 justify-center">
+                          <div className="px-4 py-2 bg-muted/40 rounded-lg border border-border/50">
+                            <code className="font-mono text-sm font-medium text-muted-foreground">M01</code>
+                          </div>
+                          <div className="px-4 py-2 bg-muted/40 rounded-lg border border-border/50">
+                            <code className="font-mono text-sm font-medium text-muted-foreground">M02</code>
+                          </div>
+                          <div className="px-4 py-2 bg-muted/40 rounded-lg border border-border/50">
+                            <code className="font-mono text-sm font-medium text-muted-foreground">M03</code>
+                          </div>
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </Container>
       </div>
     </>
   );
@@ -235,35 +326,48 @@ function ManualEntryForm({
   onSubmit: (e: React.FormEvent) => void;
 }) {
   return (
-    <form onSubmit={onSubmit} className="space-y-4">
-      <div>
-        <label htmlFor="machineCode" className="block text-sm font-medium text-gray-700 mb-2">
-          Machine Code
-        </label>
-        <input
-          type="text"
-          id="machineCode"
-          value={machineCode}
-          onChange={(e) => setMachineCode(e.target.value.toUpperCase())}
-          placeholder="e.g., M01"
-          className="w-full px-4 py-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg font-mono"
-          disabled={validatingCode}
-          autoComplete="off"
-          maxLength={5}
-        />
+    <form onSubmit={onSubmit} className="space-y-5">
+      <div className="space-y-2">
+        <div className="relative group">
+          <Input
+            type="text"
+            id="machineCode"
+            value={machineCode}
+            onChange={(e) => setMachineCode(e.target.value.toUpperCase())}
+            placeholder="M01"
+            className="h-14 text-center text-xl font-mono font-semibold tracking-[0.3em] uppercase
+                     bg-background/50 backdrop-blur-sm
+                     border-muted-foreground/20
+                     focus:border-primary/40 focus:ring-4 focus:ring-primary/10
+                     transition-all duration-300 ease-in-out
+                     placeholder:text-muted-foreground/30 placeholder:tracking-[0.3em]
+                     hover:border-muted-foreground/30"
+            disabled={validatingCode}
+            autoComplete="off"
+            maxLength={5}
+            autoFocus
+          />
+          {machineCode && !validatingCode && (
+            <div className="absolute right-3.5 top-1/2 -translate-y-1/2 animate-fade-in">
+              <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+            </div>
+          )}
+        </div>
       </div>
 
-      <button
+      <Button
         type="submit"
-        disabled={validatingCode}
-        className="w-full py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-semibold rounded-md transition-colors"
+        disabled={validatingCode || !machineCode}
+        loading={validatingCode}
+        className="w-full h-12 text-base font-medium
+                 bg-primary hover:bg-primary/90
+                 shadow-sm hover:shadow-md
+                 transition-all duration-300 ease-in-out
+                 disabled:opacity-50"
+        size="lg"
       >
-        {validatingCode ? (
-          <PulseLoader color="#fff" size={10} cssOverride={{ margin: "0px" }} />
-        ) : (
-          "Continue to Menu"
-        )}
-      </button>
+        {validatingCode ? "Validating..." : "Continue"}
+      </Button>
     </form>
   );
 }

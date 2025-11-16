@@ -1,3 +1,4 @@
+import Head from "next/head"
 import Navbar from "../../shared/navbar"
 import Link from "next/link"
 import { useRouter } from "next/router"
@@ -6,6 +7,12 @@ import { selectOrder, clearOrder } from "../../redux/orderSlice"
 import { selectCart, clearCart } from "../../redux/cartSlice"
 import { useEffect, useState } from "react"
 import { getLatestOrder } from "../../services/order"
+import { Card, CardContent } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Container } from "@/components/layout/Container"
+import { Stack } from "@/components/layout/Stack"
+import { Badge } from "@/components/ui/badge"
+import { XCircle, Home, AlertTriangle } from "lucide-react"
 
 function CancelledPage() {
   const router = useRouter()
@@ -37,77 +44,86 @@ function CancelledPage() {
 
   return (
     <>
-      <div className="w-full fixed top-0 z-10">
+      <Head>
+        <title>Order Cancelled - GolBot</title>
+        <meta name="description" content="Your order has been cancelled" />
+      </Head>
+
+      <div className="min-h-screen">
         <Navbar />
-      </div>
-      <div className="w-full grid place-items-center">
-        <div className="w-full md:w-1/2 lg:w-1/4 h-screen p-5 flex flex-col items-center">
-          <div className="h-20" />
-          
-          {/* Cancelled Header */}
-          <div className="w-full text-center mb-6">
-            <div className="text-red-500 text-4xl mb-2">❌</div>
-            <div className="text-2xl font-bold text-gray-800 mb-2">
-              Order Cancelled
-            </div>
-            <div className="text-gray-600">
-              Your order has been cancelled. If this was unexpected, please contact support.
-            </div>
-          </div>
 
-          {/* Order Info */}
-          {orderInfo && (
-            <div className="w-full m-5 border rounded-md flex flex-col bg-white shadow-lg">
-              {/* Header */}
-              <div className="bg-red-50 p-4 border-b">
-                <div className="text-center font-semibold text-red-700">Cancelled Order</div>
-                {orderInfo?.oid && (
-                  <div className="text-center text-sm text-gray-500 mt-1">
-                    Order ID: {orderInfo.oid.toString().slice(-8)}
-                  </div>
-                )}
-              </div>
-              
-              {/* Order Details */}
-              <div className="p-4">
-                <div className="flex justify-between items-center mb-2">
-                  <span className="text-sm text-gray-500">Status:</span>
-                  <span className="text-red-600 font-semibold">CANCELLED</span>
-                </div>
-                {orderInfo.amount && (
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-500">Amount:</span>
-                    <span className="font-semibold">₹{orderInfo.amount.total}</span>
-                  </div>
-                )}
-              </div>
+        <Container size="sm" className="py-24">
+          <Stack spacing="xl" align="center">
+            {/* Cancelled Header */}
+            <div className="h-20 w-20 rounded-full bg-destructive/10 flex items-center justify-center animate-fade-in">
+              <XCircle className="h-10 w-10 text-destructive" />
             </div>
-          )}
 
-          {/* Action Buttons */}
-          <div className="flex gap-4 mt-6">
-            <button
-              onClick={handleGoHome}
-              className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-            >
+            <Stack spacing="sm" align="center">
+              <h1 className="text-3xl font-bold text-center">Order Cancelled</h1>
+              <p className="text-muted-foreground text-center max-w-md">
+                Your order has been cancelled. If this was unexpected, please contact support.
+              </p>
+            </Stack>
+
+            {/* Order Info Card */}
+            {orderInfo && (
+              <Card className="w-full shadow-xl border-destructive/20 animate-slide-in-from-bottom">
+                <CardContent className="p-0">
+                  {/* Header */}
+                  <div className="bg-destructive/10 p-6 border-b border-destructive/20">
+                    <Stack spacing="xs" align="center">
+                      <h2 className="font-semibold text-lg text-destructive">Cancelled Order</h2>
+                      {orderInfo?.oid && (
+                        <p className="text-sm text-muted-foreground">
+                          Order ID: {orderInfo.oid.toString().slice(-8)}
+                        </p>
+                      )}
+                    </Stack>
+                  </div>
+
+                  {/* Order Details */}
+                  <div className="p-6 space-y-4">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-muted-foreground">Status</span>
+                      <Badge variant="destructive" className="font-semibold">
+                        CANCELLED
+                      </Badge>
+                    </div>
+                    {orderInfo.amount && (
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-muted-foreground">Amount</span>
+                        <span className="font-semibold text-lg">₹{orderInfo.amount.total}</span>
+                      </div>
+                    )}
+
+                    {/* Info Box */}
+                    <div className="bg-muted/50 rounded-lg p-4 flex gap-3">
+                      <AlertTriangle className="h-5 w-5 text-destructive flex-shrink-0 mt-0.5" />
+                      <p className="text-sm text-muted-foreground">
+                        If your payment was processed, it will be refunded within 5-7 business days.
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Action Button */}
+            <Button onClick={handleGoHome} size="lg" className="w-full sm:w-auto">
+              <Home className="h-4 w-4" />
               Go to Home
-            </button>
-          </div>
-          
-          <div className="h-6" />
-          
-          {/* Help Section */}
-          <div className="text-center">
-            <div className="text-sm text-gray-500">
+            </Button>
+
+            {/* Help Section */}
+            <p className="text-sm text-muted-foreground text-center">
               Need help with your cancelled order?{" "}
-              <span className="text-red-500 underline">
-                <Link href={`/${router.query.mid}/reportIssue`}>
-                  Report an Issue
-                </Link>
-              </span>
-            </div>
-          </div>
-        </div>
+              <Link href={`/${router.query.mid}/reportIssue`} className="text-destructive hover:underline font-medium">
+                Report an Issue
+              </Link>
+            </p>
+          </Stack>
+        </Container>
       </div>
     </>
   )

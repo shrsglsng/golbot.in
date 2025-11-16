@@ -62,14 +62,18 @@ export const createPhonePeOrder = async (req, res) => {
 
     const amountInPaise = Math.round(order.amount.total * 100);
     const receipt = `phonepe_${Date.now()}_${orderId.toString().slice(-8)}`;
-    const redirectUrl = buildRedirectUrl(orderId, 'redirect');
 
-    logger.debug('Creating PhonePe order', { 
-      orderId, 
+    // Extract origin from request headers for dynamic redirect
+    const origin = req.headers.origin || req.headers.referer?.split('/').slice(0, 3).join('/') || null;
+    const redirectUrl = buildRedirectUrl(orderId, 'redirect', origin);
+
+    logger.debug('Creating PhonePe order', {
+      orderId,
       amount: order.amount.total,
       amountInPaise,
       receipt,
-      redirectUrl 
+      origin,
+      redirectUrl
     });
 
     try {
@@ -206,12 +210,47 @@ export const verifyPhonePePayment = async (req, res) => {
       });
 
       if (!verificationResult.success) {
-        logger.warn('PhonePe payment verification failed', { 
+        logger.warn('PhonePe payment verification failed', {
           orderId,
           status: verificationResult.status,
           state: verificationResult.state
         });
-        throw new BadRequestError("Payment was not successful");
+
+        // Update payment record to FAILED status
+        await paymentRecord.updateStatus(
+          "FAILURE",
+          "phonepe_verification",
+          "Payment verification failed",
+          {
+            verificationSource: "frontend",
+            userId: uid,
+            errorCode: verificationResult.code,
+            errorMessage: verificationResult.message
+          },
+          {
+            state: verificationResult.state,
+            status: verificationResult.status
+          }
+        );
+
+        // Update order status to PAYMENT_FAILED
+        await order.updateStatus(
+          "PAYMENT_FAILED",
+          "payment_verification",
+          "Payment verification failed",
+          {
+            errorCode: verificationResult.code,
+            errorMessage: verificationResult.message || "Payment was not successful",
+            attemptedAt: new Date()
+          }
+        );
+
+        logger.info('Order and payment marked as failed', {
+          orderId: order._id,
+          status: verificationResult.status
+        });
+
+        return ApiResponse.badRequest(res, verificationResult.message || "Payment was not successful");
       }
 
       // Check for duplicate payment record

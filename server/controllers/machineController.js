@@ -10,16 +10,16 @@ import ApiResponse from "../utils/response.js";
 // Machine Login
 export const machineLogin = async (req, res) => {
   try {
-    const { mid, password } = req.body;
-    
-    logger.info('Machine login attempt', { 
+    let { mid, password } = req.body;
+
+    logger.info('Machine login attempt', {
       mid: mid?.substring(0, 8) + '...',
-      ip: req.ip 
+      ip: req.ip
     });
 
     // Validate input
     Validator.validateRequired(['mid', 'password'], { mid, password });
-    Validator.validateMachineId(mid);
+    mid = Validator.validateMachineId(mid); // Normalize to uppercase
     Validator.validateString(password, 'Password', { minLength: 6 });
 
     // Find and authenticate machine
@@ -97,11 +97,11 @@ export const machineLogin = async (req, res) => {
 // Get Machine by MID
 export const getMachine = async (req, res) => {
   try {
-    const { mid } = req.params;
-    
+    let { mid } = req.params;
+
     logger.debug('Machine info request', { mid });
 
-    Validator.validateMachineId(mid);
+    mid = Validator.validateMachineId(mid); // Normalize to uppercase
 
     const machine = await DatabaseUtil.findOne(Machine, { mid }, { throwIfNotFound: true });
 
@@ -191,7 +191,7 @@ export const updateIpAddress = async (req, res) => {
 export const getIpAddress = async (req, res) => {
   try {
     const { mid } = req.params;
-    
+
     logger.debug('Machine IP request', { mid });
 
     Validator.validateMachineId(mid);
@@ -224,17 +224,17 @@ export const getIpAddress = async (req, res) => {
 // Start machine after scanning OTP (machineAuth protected)
 export const startMachine = async (req, res) => {
   try {
-    const { orderOtp, mid } = req.body;
-    
-    logger.info('Machine start request', { 
+    let { orderOtp, mid } = req.body;
+
+    logger.info('Machine start request', {
       mid,
       hasOtp: !!orderOtp,
-      machineIp: req.ip 
+      machineIp: req.ip
     });
 
     // Validate input
     Validator.validateRequired(['orderOtp', 'mid'], { orderOtp, mid });
-    Validator.validateMachineId(mid);
+    mid = Validator.validateMachineId(mid); // Normalize to uppercase
     Validator.validateOTP(orderOtp);
 
     // Verify machine exists and is active
@@ -357,16 +357,16 @@ export const startMachine = async (req, res) => {
 // Mark order as ready for pickup after food preparation is complete
 export const markOrderReadyForPickup = async (req, res) => {
   try {
-    const { mid } = req.body;
-    
-    logger.info('Mark order ready for pickup request', { 
+    let { mid } = req.body;
+
+    logger.info('Mark order ready for pickup request', {
       mid,
-      machineIp: req.ip 
+      machineIp: req.ip
     });
 
     // Validate input
     Validator.validateRequired(['mid'], { mid });
-    Validator.validateMachineId(mid);
+    mid = Validator.validateMachineId(mid); // Normalize to uppercase
 
     // Verify machine exists and is active
     const machine = await DatabaseUtil.findOne(Machine, { mid }, { throwIfNotFound: true });
@@ -497,19 +497,19 @@ export const markOrderReadyForPickup = async (req, res) => {
 // Cancel order from machine
 export const cancelOrder = async (req, res) => {
   try {
-    const { oid, mid, reason } = req.body;
-    
-    logger.info('Cancel order request', { 
+    let { oid, mid, reason } = req.body;
+
+    logger.info('Cancel order request', {
       orderId: oid,
       mid,
       reason,
-      machineIp: req.ip 
+      machineIp: req.ip
     });
 
     // Validate input
     Validator.validateRequired(['oid', 'mid'], { oid, mid });
     Validator.validateObjectId(oid, 'Order ID');
-    Validator.validateMachineId(mid);
+    mid = Validator.validateMachineId(mid); // Normalize to uppercase
 
     // Verify machine exists
     const machine = await DatabaseUtil.findOne(Machine, { mid }, { throwIfNotFound: true });
@@ -591,18 +591,18 @@ export const cancelOrder = async (req, res) => {
 // Mark order as completed after plate dispensed
 export const plateDispensed = async (req, res) => {
   try {
-    const { oid, mid } = req.body;
-    
-    logger.info('Plate dispensed request', { 
+    let { oid, mid } = req.body;
+
+    logger.info('Plate dispensed request', {
       orderId: oid,
       mid,
-      machineIp: req.ip 
+      machineIp: req.ip
     });
 
     // Validate input
     Validator.validateRequired(['oid', 'mid'], { oid, mid });
     Validator.validateObjectId(oid, 'Order ID');
-    Validator.validateMachineId(mid);
+    mid = Validator.validateMachineId(mid); // Normalize to uppercase
 
     // Verify machine exists
     const machine = await DatabaseUtil.findOne(Machine, { mid }, { throwIfNotFound: true });

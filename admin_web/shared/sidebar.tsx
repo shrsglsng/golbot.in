@@ -11,7 +11,7 @@ function Sidebar() {
   };
   return (
     <div className="h-full w-full p-3 flex flex-col bg-slate-200">
-      <div className="flex-[0.2] basis-0 relative h-full w-full">
+      <div className="flex-[0.2] basis-0 relative h-full w-full cursor-pointer" onClick={() => router.push("/")}>
         <Logo />
       </div>
       <div className="flex-[0.8] basis-0 flex flex-col self-center">
@@ -69,6 +69,15 @@ function Sidebar() {
             router.pathname === "/orders" && "bg-cblue text-white"
           }`}>
           Orders
+        </button>
+
+        {/* reports */}
+        <button
+          onClick={() => router.push("/reports")}
+          className={`p-3 my-1 text-left hover:bg-cbluel hover:text-white rounded-full ${
+            router.pathname === "/reports" && "bg-cblue text-white"
+          }`}>
+          Reports
         </button>
 
         {/* view feedbacks */}

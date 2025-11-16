@@ -43,18 +43,28 @@ export async function placeOrder(
     });
   } catch (error: any) {
     console.error("❌ placeOrder error:", error);
-    
+    console.error("Error response:", error.response?.data);
+    console.error("Full error details:", JSON.stringify(error.response?.data, null, 2));
+
     // Handle authentication errors
     if (error.response?.status === 401) {
       localStorage.removeItem("Token");
       throw new Error("AUTHENTICATION_REQUIRED");
     }
-    
+
     // Handle other errors with user-friendly messages
+    if (error.response?.data?.error?.message) {
+      throw new Error(error.response.data.error.message);
+    }
+
     if (error.response?.data?.msg) {
       throw new Error(error.response.data.msg);
     }
-    
+
+    if (error.response?.data?.message) {
+      throw new Error(error.response.data.message);
+    }
+
     throw new Error("Failed to place order. Please try again.");
   }
 
@@ -255,12 +265,79 @@ export async function reportIssue(data: any): Promise<boolean> {
     return true;
   } catch (error: any) {
     console.error("reportIssue error:", error);
-    
+
     if (error.response?.status === 401) {
       localStorage.removeItem("Token");
       throw new Error("AUTHENTICATION_REQUIRED");
     }
-    
+
     return false;
+  }
+}
+
+// Get Order History
+export interface OrderHistoryItem {
+  oid: string;
+  orderCounter: number;
+  orderStatus: string;
+  orderCompleted: boolean;
+  orderOtp?: string;
+  amount: {
+    price: number;
+    gst: number;
+    total: number;
+  };
+  items: any[];
+  machineId: string | null;
+  machineName: string | null;
+  machineLocation: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OrderHistoryResponse {
+  orders: OrderHistoryItem[];
+  pagination: {
+    currentPage: number;
+    total: number;
+    numOfPages: number;
+    hasNextPage: boolean;
+    hasPrevPage: boolean;
+  };
+}
+
+export async function getOrderHistory(page: number = 1, limit: number = 20): Promise<OrderHistoryResponse> {
+  const baseUrl = process.env.NEXT_PUBLIC_SERVER_URL;
+  if (!baseUrl) throw new Error("Server URL not set");
+
+  const url = `${baseUrl}/order/history`;
+  const token = localStorage.getItem("Token");
+
+  try {
+    const res = await axios.get(url, {
+      params: { page, limit },
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (res.status === 200 && res.data?.data) {
+      return {
+        orders: res.data.data.orders,
+        pagination: res.data.data.pagination,
+      };
+    }
+
+    throw new Error("Unexpected response format");
+  } catch (error: any) {
+    console.error("getOrderHistory error:", error);
+
+    if (error.response?.status === 401) {
+      localStorage.removeItem("Token");
+      throw new Error("AUTHENTICATION_REQUIRED");
+    }
+
+    throw new Error(error.message || "Failed to fetch order history");
   }
 }

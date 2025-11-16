@@ -1,242 +1,381 @@
-import Sidebar from "@/shared/sidebar"
-import Head from "next/head"
-import VisibilityIcon from "@mui/icons-material/Visibility"
-import Link from "next/link"
-import { useEffect, useState } from "react"
-import ReactSlider from "react-slider"
-import axios from "axios"
-import { PulseLoader } from "react-spinners"
-import { FeedbackModel } from "@/models/feedbackModel"
-import ModalImage from "react-modal-image"
+import { useEffect, useState } from "react";
+import Head from "next/head";
+import axios from "axios";
+import { AppLayout } from "@/components/layout/AppLayout";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Search,
+  MessageSquare,
+  Phone,
+  Bot,
+  Calendar,
+  Image as ImageIcon,
+  RotateCcw,
+  ChevronLeft,
+  ChevronRight,
+  Filter,
+} from "lucide-react";
+import { toast } from "sonner";
 
-function FeedbackTableRow({ feedback }: { feedback: FeedbackModel }) {
-  return (
-    <tr className="bg-white border-b">
-      <th className="px-6 py-4 font-medium text-gray-900 whitespace-nowrap text-left">
-        {feedback.oid}
-      </th>
-      <td className="px-6 py-4 text-left">{feedback.phone}</td>
-      <td className="px-6 py-4 text-left">{feedback.machineId}</td>
-      <td className="px-6 py-4 text-left">
-        {feedback.reportedDate.slice(0, 10)}
-      </td>
-      <td className="px-6 py-4 text-left">{feedback.description}</td>
-      <td className="px-3 py-2 text-right">
-        <ModalImage
-          small={feedback.imgUrl}
-          large={feedback.imgUrl}
-          alt={feedback.oid}
-        />
-      </td>
-    </tr>
-  )
+interface Feedback {
+  oid: string;
+  phone: string;
+  machineId: string;
+  reportedDate: string;
+  description: string;
+  imgUrl: string;
 }
 
-function Feedback() {
-  const [isSearchLoading, setIsSearchLoading] = useState(false)
-  const [pgVal, setPgVal] = useState(1)
-  const [totPages, setTotPages] = useState(1)
-  const [queryObj, setQueryObj] = useState({
+export default function Feedbacks() {
+  const [feedbacks, setFeedbacks] = useState<Feedback[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filters, setFilters] = useState({
     oid: "",
     machineId: "",
     phone: "",
     reportedDate: "",
-  })
-  const [feedbackList, setFeedbackList] = useState<FeedbackModel[]>([])
+  });
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
-  async function getFeedbacks() {
-    setIsSearchLoading(true)
-    if (!process.env.NEXT_PUBLIC_SERVER_URL) throw "Server Url Not Set"
-    const url = process.env.NEXT_PUBLIC_SERVER_URL + "/admin/getreportIssues"
+  useEffect(() => {
+    fetchFeedbacks();
+  }, [page]);
 
+  async function fetchFeedbacks() {
+    setLoading(true);
     try {
-      var res = await axios.get(url, {
+      const baseUrl = process.env.NEXT_PUBLIC_SERVER_URL;
+      if (!baseUrl) throw new Error("Server URL not set");
+
+      const url = `${baseUrl}/admin/getreportIssues`;
+
+      const res = await axios.get(url, {
         params: {
-          orderId: queryObj.oid,
-          machineId: queryObj.machineId,
-          phone: queryObj.phone,
-          reportedDate: queryObj.reportedDate,
-          page: pgVal,
+          orderId: filters.oid || undefined,
+          machineId: filters.machineId || undefined,
+          phone: filters.phone || undefined,
+          reportedDate: filters.reportedDate || undefined,
+          page,
         },
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${localStorage.getItem("Token")}`,
         },
-      })
+      });
 
       if (res.status === 200) {
-        setFeedbackList(res.data.result.issues)
-        setTotPages(res.data.result.numOfPages)
+        setFeedbacks(res.data.data.issues);
+        setTotalPages(res.data.data.pagination.numOfPages);
       }
-    } catch (e: any) {}
-    setIsSearchLoading(false)
+    } catch (error) {
+      console.error("Failed to fetch feedbacks:", error);
+      toast.error("Failed to load feedbacks");
+    } finally {
+      setLoading(false);
+    }
   }
 
-  useEffect(() => {
-    getFeedbacks()
-  }, [pgVal])
+  const handleSearch = () => {
+    setPage(1);
+    fetchFeedbacks();
+  };
+
+  const handleReset = () => {
+    setFilters({
+      oid: "",
+      machineId: "",
+      phone: "",
+      reportedDate: "",
+    });
+    setSearchQuery("");
+    setPage(1);
+  };
+
+  const filteredFeedbacks = feedbacks.filter((feedback) => {
+    if (!searchQuery) return true;
+    const query = searchQuery.toLowerCase();
+    return (
+      feedback.oid.toLowerCase().includes(query) ||
+      feedback.phone.toLowerCase().includes(query) ||
+      feedback.machineId.toLowerCase().includes(query) ||
+      feedback.description.toLowerCase().includes(query)
+    );
+  });
 
   return (
     <>
       <Head>
-        <title>FeedBacks</title>
-        <meta name="description" content="Generated by create next app" />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <link rel="icon" href="/favicon.ico" />
+        <title>Feedback - GolBot Admin</title>
       </Head>
-      <main className="w-screen flex">
-        {/* sideBar */}
-        <div className="w-72 h-screen fixed">
-          <Sidebar />
-        </div>
-        {/* content */}
-        <div className="w-[20%]" />
-        <div className="w-[80%] h-full p-10 flex flex-col">
-          {/* Filter Box */}
-          <div className="w-full p-10 flex flex-col bg-slate-200 rounded-md">
-            <div className="text-4xl">Filter</div>
-            <div className="h-10" />
-            <div className="w-full grid gap-5 grid-cols-2 md:grid-cols-3">
-              {/*  */}
-              <div className="flex flex-col">
-                <div className="font-semibold text-sm ml-1">Order Id</div>
-                <div className="h-2" />
-                <input
-                  className="p-1 px-2 rounded-md border border-gray-400"
-                  value={queryObj.oid}
-                  onChange={(v) =>
-                    setQueryObj((f) => ({ ...f, oid: v.target.value }))
-                  }
-                  type="text"
-                />
-              </div>
-              {/*  */}
-              <div className="flex flex-col">
-                <div className="font-semibold text-sm ml-1">Phone</div>
-                <div className="h-2" />
-                <input
-                  className="p-1 px-2 rounded-md border border-gray-400"
-                  value={queryObj.phone}
-                  onChange={(v) =>
-                    setQueryObj((f) => ({ ...f, phone: v.target.value }))
-                  }
-                  type="text"
-                />
-              </div>
-              {/*  */}
-              <div className="flex flex-col">
-                <div className="font-semibold text-sm ml-1">Machine Id</div>
-                <div className="h-2" />
-                <input
-                  className="p-1 px-2 rounded-md border border-gray-400"
-                  value={queryObj.machineId}
-                  onChange={(v) =>
-                    setQueryObj((f) => ({ ...f, machineId: v.target.value }))
-                  }
-                  type="text"
-                />
-              </div>
 
-              {/*  */}
-              <div className="flex flex-col">
-                <div className="font-semibold text-sm ml-1">Date</div>
-                <div className="h-2" />
-                <input
-                  className="p-1 px-2 rounded-md border border-gray-400"
-                  onChange={(v) =>
-                    setQueryObj((f) => ({ ...f, reportedDate: v.target.value }))
-                  }
-                  type="date"
-                />
-              </div>
-
-              {/*  */}
-              <div className="flex flex-col col-span-3">
-                <div className="h-7" />
-                <button
-                  className="p-1 rounded-md border border-cblue text-white bg-cblue hover:text-cblue hover:bg-transparent"
-                  onClick={getFeedbacks}>
-                  {isSearchLoading ? <PulseLoader /> : "Search"}
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* table */}
-          <div className="h-10" />
-          <div className="w-full p-10 flex flex-col bg-slate-200 rounded-md">
-            {/* Order counts */}
-
-            {/* table */}
-            <div className="w-full overflow-x-auto rounded-lg">
-              <table className="w-full text-sm text-left text-gray-500">
-                <colgroup>
-                  <col span={1} className="w-[10%]" />
-                  <col span={1} className="w-[10%]" />
-                  <col span={1} className="w-[15%]" />
-                  <col span={1} className="w-[15%]" />
-                  <col span={1} className="w-[40%]" />
-                  <col span={1} className="w-[10%]" />
-                </colgroup>
-                <thead className="text-gray-900 uppercase bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left">Order id</th>
-                    <th className="px-6 py-3 text-left">Phone</th>
-                    <th className="px-6 py-3 text-left">Machine ID</th>
-                    <th className="px-6 py-3 text-left">Order date</th>
-                    <th className="px-6 py-3 text-left">description</th>
-                    <th className="px-6 py-3 text-left">Image</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {feedbackList.map((feedback: FeedbackModel, i: number) => (
-                    <FeedbackTableRow key={i} feedback={feedback} />
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            {/* pagination bar */}
-            <div className="h-3" />
-            <div className="w-full p-3 grid place-items-center">
-              <div className="flex border border-cblue rounded-xl">
-                <button
-                  className="p-2 border-r border-cblue bg-cblue text-white hover:bg-transparent hover:text-cblue rounded-l-lg"
-                  onClick={() => {
-                    if (pgVal > 1) setPgVal((v) => (v -= 1))
-                  }}>
-                  Previous
-                </button>
-                <div className="flex px-3 justify-center items-center">
-                  <input
-                    className="w-10 px-1 m-1 mr-3 rounded-md border text-center"
-                    // value={1}
-                    type="text"
-                    pattern="[0-9]*"
-                    value={pgVal}
-                    onChange={(e) => {
-                      const num =
-                        parseInt(e.target.value.replace("/D/g", "")) || 0
-                      if (num > totPages) return
-                      setPgVal(num)
-                    }}
-                  />
-                  <div className="text-gray-600 text-lg mr-1">/ {totPages}</div>
+      <AppLayout title="Feedback" description="View customer feedback and issue reports">
+        <div className="space-y-6">
+          {/* Filters Card */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Filter className="h-5 w-5" />
+                    Filters
+                  </CardTitle>
+                  <CardDescription>Search and filter customer feedback</CardDescription>
                 </div>
-                <button
-                  className="p-2 border-l border-cblue bg-cblue text-white hover:bg-transparent hover:text-cblue rounded-r-lg"
-                  onClick={() => {
-                    if (pgVal < totPages) setPgVal((v) => (v += 1))
-                  }}>
-                  Next
-                </button>
+                <Button variant="outline" size="sm" onClick={handleReset}>
+                  <RotateCcw className="mr-2 h-4 w-4" />
+                  Reset
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-4 md:grid-cols-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Order ID</label>
+                  <Input
+                    placeholder="Enter order ID"
+                    value={filters.oid}
+                    onChange={(e) => setFilters({ ...filters, oid: e.target.value })}
+                    onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Phone Number</label>
+                  <Input
+                    placeholder="Enter phone number"
+                    value={filters.phone}
+                    onChange={(e) => setFilters({ ...filters, phone: e.target.value })}
+                    onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Machine ID</label>
+                  <Input
+                    placeholder="Enter machine ID"
+                    value={filters.machineId}
+                    onChange={(e) => setFilters({ ...filters, machineId: e.target.value })}
+                    onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Date</label>
+                  <Input
+                    type="date"
+                    value={filters.reportedDate}
+                    onChange={(e) => setFilters({ ...filters, reportedDate: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div className="mt-4">
+                <Button onClick={handleSearch} className="w-full md:w-auto">
+                  <Search className="mr-2 h-4 w-4" />
+                  Search
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Feedbacks Grid */}
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-lg font-semibold">
+                  All Feedback ({filteredFeedbacks.length})
+                </h2>
+                <p className="text-sm text-muted-foreground">
+                  Customer feedback and issue reports
+                </p>
+              </div>
+              <div className="relative flex-1 max-w-sm ml-4">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  placeholder="Quick search..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-9"
+                />
               </div>
             </div>
-          </div>
-        </div>
-      </main>
-    </>
-  )
-}
 
-export default Feedback
+            {loading ? (
+              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <Card key={i}>
+                    <CardContent className="p-6">
+                      <Skeleton className="h-32 w-full rounded-lg mb-4" />
+                      <Skeleton className="h-5 w-3/4 mb-2" />
+                      <Skeleton className="h-4 w-full mb-2" />
+                      <Skeleton className="h-4 w-2/3" />
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            ) : filteredFeedbacks.length === 0 ? (
+              <Card>
+                <CardContent className="py-12">
+                  <div className="flex flex-col items-center gap-2 text-center text-muted-foreground">
+                    <MessageSquare className="h-12 w-12 opacity-20" />
+                    <p className="text-lg font-medium">No feedback found</p>
+                    <p className="text-sm">
+                      {searchQuery
+                        ? "Try adjusting your search query"
+                        : "No customer feedback available"}
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                {filteredFeedbacks.map((feedback, index) => (
+                  <Card key={index} className="overflow-hidden hover:shadow-lg transition-shadow">
+                    {/* Image Section */}
+                    {feedback.imgUrl && (
+                      <div
+                        className="relative aspect-video bg-muted cursor-pointer group"
+                        onClick={() => setSelectedImage(feedback.imgUrl)}
+                      >
+                        <img
+                          src={feedback.imgUrl}
+                          alt={`Feedback for ${feedback.oid}`}
+                          className="h-full w-full object-cover group-hover:opacity-90 transition-opacity"
+                        />
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/20 transition-colors">
+                          <ImageIcon className="h-8 w-8 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </div>
+                      </div>
+                    )}
+
+                    <CardHeader className="space-y-3">
+                      {/* Order ID */}
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="font-mono">
+                          {feedback.oid}
+                        </Badge>
+                      </div>
+
+                      {/* Description */}
+                      <div className="space-y-1">
+                        <div className="flex items-start gap-2">
+                          <MessageSquare className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0" />
+                          <p className="text-sm text-muted-foreground line-clamp-3">
+                            {feedback.description || "No description provided"}
+                          </p>
+                        </div>
+                      </div>
+                    </CardHeader>
+
+                    <CardContent className="space-y-3 pt-0">
+                      {/* Phone */}
+                      <div className="flex items-center gap-2 text-sm">
+                        <Phone className="h-4 w-4 text-muted-foreground" />
+                        <span className="font-medium">{feedback.phone}</span>
+                      </div>
+
+                      {/* Machine ID */}
+                      <div className="flex items-center gap-2 text-sm">
+                        <Bot className="h-4 w-4 text-muted-foreground" />
+                        <span className="font-mono">{feedback.machineId}</span>
+                      </div>
+
+                      {/* Date */}
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Calendar className="h-4 w-4" />
+                        <span>
+                          {new Date(feedback.reportedDate).toLocaleDateString("en-IN", {
+                            year: "numeric",
+                            month: "short",
+                            day: "numeric",
+                          })}
+                        </span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-muted-foreground">
+                Page {page} of {totalPages}
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={page === 1 || loading}
+                >
+                  <ChevronLeft className="h-4 w-4 mr-1" />
+                  Previous
+                </Button>
+                <div className="flex items-center gap-2 px-4">
+                  <Input
+                    type="number"
+                    min={1}
+                    max={totalPages}
+                    value={page}
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value);
+                      if (val >= 1 && val <= totalPages) {
+                        setPage(val);
+                      }
+                    }}
+                    className="w-16 text-center"
+                  />
+                  <span className="text-sm text-muted-foreground">of {totalPages}</span>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={page === totalPages || loading}
+                >
+                  Next
+                  <ChevronRight className="h-4 w-4 ml-1" />
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Image Modal */}
+        {selectedImage && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
+            onClick={() => setSelectedImage(null)}
+          >
+            <div className="relative max-w-4xl max-h-[90vh]">
+              <img
+                src={selectedImage}
+                alt="Feedback"
+                className="max-w-full max-h-[90vh] rounded-lg"
+              />
+              <Button
+                variant="outline"
+                size="sm"
+                className="absolute top-4 right-4 bg-white"
+                onClick={() => setSelectedImage(null)}
+              >
+                Close
+              </Button>
+            </div>
+          </div>
+        )}
+      </AppLayout>
+    </>
+  );
+}

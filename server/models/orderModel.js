@@ -5,7 +5,7 @@ import Counter from "./counterModel.js";
 const statusHistorySchema = new mongoose.Schema({
   status: {
     type: String,
-    enum: ["PENDING", "PAID", "OTP_VERIFIED", "PREPARING", "READY_FOR_PICKUP", "COMPLETED", "CANCELLED"],
+    enum: ["PENDING", "PAID", "PAYMENT_FAILED", "OTP_VERIFIED", "PREPARING", "READY_FOR_PICKUP", "COMPLETED", "CANCELLED"],
     required: true
   },
   changedAt: { type: Date, default: Date.now },
@@ -24,7 +24,7 @@ const orderSchema = new mongoose.Schema({
   },
   orderStatus: {
     type: String,
-    enum: ["PENDING", "PAID", "OTP_VERIFIED", "PREPARING", "READY_FOR_PICKUP", "COMPLETED", "CANCELLED"],
+    enum: ["PENDING", "PAID", "PAYMENT_FAILED", "OTP_VERIFIED", "PREPARING", "READY_FOR_PICKUP", "COMPLETED", "CANCELLED"],
     default: "PENDING",
   },
   orderCompleted: { type: Boolean, default: false },

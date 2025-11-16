@@ -1,10 +1,10 @@
 import Link from "next/link"
 import Logo from "./logo"
-import QrCodeScannerIcon from "@mui/icons-material/QrCodeScanner"
-import LogoutIcon from "@mui/icons-material/Logout"
-import LoginIcon from "@mui/icons-material/Login"
-import CloseIcon from "@mui/icons-material/Close"
-import MenuIcon from "@mui/icons-material/Menu"
+import {
+  QrCode, LogOut, LogIn, Menu, Package, RefreshCw,
+  User, FileText, Shield,
+  Mail, Truck, RotateCcw, ChevronRight, Info
+} from "lucide-react"
 import LoadingBar, { LoadingBarRef } from "react-top-loading-bar"
 
 import { useEffect, useRef, useState } from "react"
@@ -13,11 +13,18 @@ import { useDispatch } from "react-redux"
 import { updateToken } from "../redux/userSlice"
 import { updateOrder } from "../redux/orderSlice"
 import { getLatestOrder, getIsOrderCompleted } from "../services/order"
+import { Button } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
+import { getSavedMachineId } from "../utils/machineStorage"
+import { Sheet, SheetContent } from "@/components/ui/sheet"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Separator } from "@/components/ui/separator"
 
 function Navbar() {
   const [loggedIn, setLoggedIn] = useState(false)
   const [showDrawer, setShowDrawer] = useState(false)
   const [showQrBtn, setShowQrBtn] = useState(false)
+  const [savedMachineId, setSavedMachineId] = useState<string | null>(null)
 
   const router = useRouter()
   const dispatch = useDispatch()
@@ -25,6 +32,10 @@ function Navbar() {
 
   useEffect(() => {
     async function init() {
+      // Load saved machine ID
+      const saved = getSavedMachineId()
+      setSavedMachineId(saved)
+
       const token = localStorage.getItem("Token")
       if (token) {
         dispatch(updateToken({ token }))
@@ -71,119 +82,233 @@ function Navbar() {
     }
   }, [])
 
-  const navLinks = [
-    { label: "About Us", href: "about-us" },
-    { label: "Terms & Conditions", href: "terms" },
-    { label: "Privacy Policy", href: "privacy-policy" },
-    { label: "Refund Policy", href: "refund-policy" },
-    { label: "Shipping Policy", href: "shipping" },
-    { label: "Contact Us", href: "contact" },
-  ]
-
   return (
     <>
       {/* Top navbar */}
-      <div className="h-[72px] w-full px-4 flex items-center justify-between bg-cblue shadow-md">
-        <button
-          type="button"
-          className="cursor-pointer bg-transparent border-none p-0 m-0"
-          onClick={() => router.push(`/${router.query.mid ?? "/"}`)}
-          tabIndex={0}
+      <nav className="h-[72px] w-full px-4 flex items-center justify-between bg-primary shadow-lg fixed top-0 z-30 backdrop-blur-sm">
+        <Button
+          variant="ghost"
+          className="h-12 px-2 hover:bg-primary-light focus-visible:ring-white"
+          onClick={() => router.push("/")}
           aria-label="Go to home"
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ") {
-              router.push(`/${router.query.mid ?? "/"}`)
-            }
-          }}
-          style={{ outline: "none" }}
         >
           <div className="relative w-28 h-12">
             <Logo />
           </div>
-        </button>
+        </Button>
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2">
           {showQrBtn && (
-            <button
+            <Button
               onClick={() => router.push(`/${router.query.mid}/qrPage`)}
-              className="p-2 bg-white text-cblue rounded-full hover:shadow-md transition"
+              variant="secondary"
+              size="icon"
+              className="rounded-full shadow-md hover:shadow-lg transition-shadow"
               title="Scan QR"
             >
-              <QrCodeScannerIcon />
-            </button>
+              <QrCode className="h-5 w-5" />
+            </Button>
           )}
-          <button
+          <Button
             onClick={() => setShowDrawer(true)}
-            className="p-2 rounded-md hover:bg-cblue/30 transition"
+            variant="ghost"
+            size="icon"
+            className="hover:bg-primary-light text-white"
+            aria-label="Open menu"
           >
-            <MenuIcon className="text-white" fontSize="large" />
-          </button>
+            <Menu className="h-6 w-6" />
+          </Button>
         </div>
-      </div>
+      </nav>
 
-      {showDrawer && (
-        <div
-          className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm"
-          onClick={() => setShowDrawer(false)} // Backdrop click closes
-        >
-          <div
-            onClick={(e) => e.stopPropagation()} // Prevent drawer close on inner click
-            className="absolute right-0 top-0 h-[100dvh] w-4/5 sm:w-2/3 md:w-1/2 bg-white rounded-l-2xl overflow-y-auto flex flex-col"
-          >
-            <div className="flex justify-between items-center px-6 pt-6">
-              <span className="text-xl font-semibold text-cblue">Menu</span>
-              <button onClick={() => setShowDrawer(false)}>
-                <CloseIcon fontSize="large" className="text-cblue" />
-              </button>
+      {/* Shadcn Sheet Drawer - Zomato/Swiggy Style */}
+      <Sheet open={showDrawer} onOpenChange={setShowDrawer}>
+        <SheetContent side="right" className="w-[85vw] sm:w-[400px] p-0 flex flex-col">
+          {/* Profile Section */}
+          <div className="bg-gradient-to-br from-orange-500 via-orange-600 to-red-600 p-6 pb-8">
+            <div className="flex items-center gap-4">
+              <Avatar className="h-16 w-16 border-2 border-white shadow-lg">
+                <AvatarFallback className="bg-white text-orange-600 text-xl font-bold">
+                  {loggedIn ? <User className="h-8 w-8" /> : <User className="h-8 w-8" />}
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex-1">
+                {loggedIn ? (
+                  <>
+                    <h3 className="text-white font-semibold text-lg">Welcome Back!</h3>
+                    <p className="text-white/90 text-sm">GolBot User</p>
+                  </>
+                ) : (
+                  <>
+                    <h3 className="text-white font-semibold text-lg">Hello Guest</h3>
+                    <p className="text-white/90 text-sm">Login for better experience</p>
+                  </>
+                )}
+              </div>
             </div>
 
-            <div className="flex flex-col gap-5 text-lg text-gray-700 px-6 py-6">
-              {navLinks.map((link) => (
+            {savedMachineId && (
+              <div className="mt-4 bg-white/20 backdrop-blur-sm rounded-lg px-3 py-2">
+                <p className="text-white/80 text-xs">Current Machine</p>
+                <p className="text-white font-mono font-semibold">{savedMachineId}</p>
+              </div>
+            )}
+          </div>
+
+          {/* Menu Content */}
+          <div className="flex-1 overflow-y-auto py-2">
+            {/* Quick Actions */}
+            {(loggedIn || savedMachineId) && (
+              <div className="px-4 py-2">
+                <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 px-2">
+                  Quick Actions
+                </h4>
+                <div className="space-y-1">
+                  {loggedIn && (
+                    <Link
+                      href="/myOrders"
+                      onClick={() => setShowDrawer(false)}
+                      className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-orange-50 transition-colors group"
+                    >
+                      <div className="p-2 rounded-full bg-orange-100 group-hover:bg-orange-200 transition-colors">
+                        <Package className="h-4 w-4 text-orange-600" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="font-medium text-foreground">My Orders</p>
+                        <p className="text-xs text-muted-foreground">Track your orders</p>
+                      </div>
+                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                    </Link>
+                  )}
+
+                  {savedMachineId && (
+                    <Link
+                      href="/order"
+                      onClick={() => setShowDrawer(false)}
+                      className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-orange-50 transition-colors group"
+                    >
+                      <div className="p-2 rounded-full bg-blue-100 group-hover:bg-blue-200 transition-colors">
+                        <RefreshCw className="h-4 w-4 text-blue-600" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="font-medium text-foreground">Change Machine</p>
+                        <p className="text-xs text-muted-foreground">Switch to another machine</p>
+                      </div>
+                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                    </Link>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {(loggedIn || savedMachineId) && <Separator className="my-4" />}
+
+            {/* Information */}
+            <div className="px-4 py-2">
+              <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 px-2">
+                Information
+              </h4>
+              <div className="space-y-1">
                 <Link
-                  key={link.href}
-                  href={`/${link.href}`}
-                  className="hover:text-cblue transition"
+                  href="/about-us"
                   onClick={() => setShowDrawer(false)}
+                  className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-accent transition-colors"
                 >
-                  {link.label}
+                  <Info className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-foreground">About Us</span>
                 </Link>
-              ))}
+                <Link
+                  href="/contact"
+                  onClick={() => setShowDrawer(false)}
+                  className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-accent transition-colors"
+                >
+                  <Mail className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-foreground">Contact Us</span>
+                </Link>
+              </div>
             </div>
 
-            <div className="mt-auto px-6 py-6 border-t border-gray-300">
-              {loggedIn ? (
-                <button
-                  onClick={() => {
-                    localStorage.removeItem("Token")
-                    dispatch(updateOrder({ order: {} }))
-                    setLoggedIn(false)
-                    router.replace("/")
-                  }}
-                  className="flex items-center text-cblue hover:text-red-600 transition"
+            <Separator className="my-4" />
+
+            {/* Policies */}
+            <div className="px-4 py-2">
+              <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 px-2">
+                Policies
+              </h4>
+              <div className="space-y-1">
+                <Link
+                  href="/terms"
+                  onClick={() => setShowDrawer(false)}
+                  className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-accent transition-colors"
                 >
-                  <LogoutIcon className="mr-2" />
-                  Logout
-                </button>
-              ) : (
-                <button
-                  onClick={() => {
-                    router.replace({
-                      pathname: "/auth/login",
-                      query: { next: router.query.mid?.toString() ?? "" },
-                    })
-                  }}
-                  className="flex items-center text-cblue hover:text-green-600 transition"
+                  <FileText className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-foreground text-sm">Terms & Conditions</span>
+                </Link>
+                <Link
+                  href="/privacy-policy"
+                  onClick={() => setShowDrawer(false)}
+                  className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-accent transition-colors"
                 >
-                  <LoginIcon className="mr-2" />
-                  Login
-                </button>
-              )}
+                  <Shield className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-foreground text-sm">Privacy Policy</span>
+                </Link>
+                <Link
+                  href="/refund-policy"
+                  onClick={() => setShowDrawer(false)}
+                  className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-accent transition-colors"
+                >
+                  <RotateCcw className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-foreground text-sm">Refund Policy</span>
+                </Link>
+                <Link
+                  href="/shipping"
+                  onClick={() => setShowDrawer(false)}
+                  className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-accent transition-colors"
+                >
+                  <Truck className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-foreground text-sm">Shipping Policy</span>
+                </Link>
+              </div>
             </div>
           </div>
-        </div>
-      )}
 
-      <LoadingBar color="#f11946" ref={pageLoadingRef} height={3} />
+          {/* Auth Section - Footer */}
+          <div className="p-4 border-t bg-muted/30">
+            {loggedIn ? (
+              <Button
+                onClick={() => {
+                  localStorage.removeItem("Token")
+                  dispatch(updateOrder({ order: {} }))
+                  setLoggedIn(false)
+                  setShowDrawer(false)
+                  router.replace("/")
+                }}
+                variant="destructive"
+                className="w-full justify-center gap-2 shadow-sm"
+              >
+                <LogOut className="h-4 w-4" />
+                Logout
+              </Button>
+            ) : (
+              <Button
+                onClick={() => {
+                  setShowDrawer(false)
+                  router.replace({
+                    pathname: "/auth/login",
+                    query: { next: router.query.mid?.toString() ?? "" },
+                  })
+                }}
+                className="w-full justify-center gap-2 bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 shadow-sm"
+              >
+                <LogIn className="h-4 w-4" />
+                Login
+              </Button>
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      <LoadingBar color="#FF9800" ref={pageLoadingRef} height={3} />
     </>
   )
 }

@@ -145,8 +145,9 @@ export const getPhonePeEnvironment = () => PHONEPE_ENVIRONMENT;
 export const getPhonePeMode = () => `${PHONEPE_ENVIRONMENT} (${PHONEPE_ENV})`;
 
 // URL builders
-export const buildRedirectUrl = (orderId, type = 'success') => {
-  const baseUrl = FRONTEND_CONFIG.userWebUrl;
+export const buildRedirectUrl = (orderId, type = 'success', origin = null) => {
+  // Use origin if provided (for dynamic redirects), otherwise fallback to env variable
+  const baseUrl = origin || FRONTEND_CONFIG.userWebUrl;
   const route = FRONTEND_CONFIG[`${type}Route`] || FRONTEND_CONFIG.successRoute;
   return `${baseUrl}${route.replace('{orderId}', orderId)}`;
 };

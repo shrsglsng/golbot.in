@@ -7,7 +7,9 @@ import {
   getIsOrderPreparing,
   getIsOrderCancelled,
   createReportIssue,
-  getAllOrders
+  getAllOrders,
+  getUserOrderHistory,
+  getOrderById
 } from "../controllers/orderController.js";
 import auth from "../middlewares/auth.js";
 import admin from "../middlewares/admin.js";
@@ -22,6 +24,10 @@ router.get("/latest", auth, getLatestOrder);
 router.get("/completed", auth, getIsOrderCompleted);
 router.get("/preparing", auth, getIsOrderPreparing);
 router.get("/cancelled", auth, getIsOrderCancelled);
+
+// User order history
+router.get("/history", auth, getUserOrderHistory);
+router.get("/:orderId", auth, getOrderById);
 
 // Issue report with image
 router.post("/report", auth, uploadImage.single("image"), createReportIssue);

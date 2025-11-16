@@ -5,6 +5,7 @@ const orderItemSchema = new mongoose.Schema({
   itemId: { type: mongoose.Schema.Types.ObjectId, ref: "Item", required: true },
   qty: { type: Number, min: 1, required: true },
   priceAtOrderTime: { type: Number, min: 0, required: true },
+  gstAtOrderTime: { type: Number, min: 0, default: 0 },
 }, { timestamps: true });
 
 orderItemSchema.index({ orderId: 1, itemId: 1 }, { unique: true });

@@ -1,7 +1,4 @@
-import Image from "next/image";
-import ArrowBackIosNewIcon from "@mui/icons-material/ArrowBackIosNew";
-import { PulseLoader } from "react-spinners";
-import CloseIcon from "@mui/icons-material/Close";
+import Head from "next/head"
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import { useSelector, useDispatch } from "react-redux";
@@ -12,70 +9,77 @@ import { GetServerSideProps } from "next/types";
 import Navbar from "../../shared/navbar";
 import { ItemModel as BaseItemModel } from "../../models/itemModel";
 import { handleAuthenticationError, showUserFriendlyError } from "../../utils/authErrorHandler";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Container } from "@/components/layout/Container";
+import { Stack } from "@/components/layout/Stack";
+import { CartItemCard } from "@/components/features/CartItemCard";
+import { ArrowLeft, ShoppingCart, Loader2, Package, Receipt, MapPin, Clock } from "lucide-react"
+import { Separator } from "@/components/ui/separator"
+import { Badge } from "@/components/ui/badge";
+import { useToast } from "@/hooks/use-toast";
+import MachineBanner from "@/components/MachineBanner";
+import { getMachineById, MachineInfo } from "../../services/machine";
+import { saveMachineId, isAuthenticated } from "../../utils/machineStorage";
 
 type ExtendedItemModel = BaseItemModel & { quantity: number };
-
-function ItemCard({ item, index }: Readonly<{ item: ExtendedItemModel; index: number }>) {
-  const dispatch = useDispatch();
-
-  const handleButtonOnClick = (action: "+" | "-") => {
-    if (action === "+" && item.quantity < 10) {
-      dispatch(updateCart({ item: { ...item, quantity: item.quantity + 1 }, index }));
-    } else if (action === "-" && item.quantity > 1) {
-      dispatch(updateCart({ item: { ...item, quantity: item.quantity - 1 }, index }));
-    }
-  };
-
-  return (
-    <div className="h-36 py-5 w-full flex">
-      <div className="flex-grow-[0.35] basis-0 flex flex-col justify-center">
-        <div className="relative h-full w-full">
-          <Image 
-            src="/paniPuri.png" 
-            alt={item.name} 
-            fill 
-            className="rounded-md" 
-            sizes="140px"
-          />
-        </div>
-      </div>
-      <div className="flex-grow-[0.65] basis-0 pl-5 flex flex-col">
-        <div>{item.name}</div>
-        <div className="h-3" />
-        <div>₹{item.price ?? 0}</div>
-        <div className="h-3" />
-        <div className="flex w-full">
-          <button className="px-2 text-white bg-cblue hover:bg-cbluel rounded-md" onClick={() => handleButtonOnClick("-")}>−</button>
-          <div className="w-3" />
-          <div>{item.quantity}</div>
-          <div className="w-3" />
-          <button className="px-2 text-white bg-cblue hover:bg-cbluel rounded-md" onClick={() => handleButtonOnClick("+")}>+</button>
-          <button onClick={() => dispatch(updateCart({ item: { ...item, quantity: 0 }, index }))} className="ml-auto">
-            <CloseIcon className="text-gray-500" fontSize="small" />
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 function CheckoutPage() {
   const router = useRouter();
   const items = useSelector(selectCart);
   const dispatch = useDispatch();
   const { mid } = router.query;
+  const toast = useToast();
 
   const [isConBtnLoading, setIsConBtnLoading] = useState(false);
   const [amount, setAmount] = useState({ price: 0, gst: 0, total: 0 });
+  const [machineInfo, setMachineInfo] = useState<MachineInfo | null>(null);
+  const [checkingAuth, setCheckingAuth] = useState(true);
+
+  // Check authentication and save MID
+  useEffect(() => {
+    if (mid && typeof mid === "string") {
+      // Save the MID to localStorage
+      saveMachineId(mid);
+
+      // Check if user is authenticated
+      if (!isAuthenticated()) {
+        console.log('User not authenticated, redirecting to login');
+        router.replace(`/auth/login?next=${mid}`);
+        return;
+      }
+
+      setCheckingAuth(false);
+    }
+  }, [mid, router]);
+
+  // Fetch machine info
+  useEffect(() => {
+    if (mid && typeof mid === "string" && !checkingAuth) {
+      getMachineById(mid).then((result) => {
+        if (result.success && result.machine) {
+          setMachineInfo(result.machine);
+        }
+      });
+    }
+  }, [mid, checkingAuth]);
 
   const handleConfirmBtnClick = async () => {
     setIsConBtnLoading(true);
 
     try {
-      const itemsToOrder = items.filter((item) => item.quantity > 0);
+      const itemsToOrder = items
+        .filter((item) => item.quantity > 0)
+        .map((item) => ({
+          id: item.id || item._id,
+          quantity: item.quantity
+        }));
+
       if (itemsToOrder.length === 0) {
         throw new Error("No valid items to order");
       }
+
+      console.log("Prepared items for order:", itemsToOrder);
 
       // Step 1: Create DB Order
       const result = await placeOrder(itemsToOrder, mid?.toString() ?? "");
@@ -186,13 +190,43 @@ function CheckoutPage() {
 
       // Step 3: Redirect to PhonePe Checkout
       console.log("🟦 Redirecting to PhonePe checkout:", finalCheckoutUrl);
-      
+
       // Store order details for return handling
       sessionStorage.setItem('pendingOrderId', orderId);
       sessionStorage.setItem('pendingMachineId', mid?.toString() || '');
-      
-      // Redirect to PhonePe payment page
-      window.location.href = finalCheckoutUrl;
+
+      // Detect if user is on mobile device
+      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+
+      // Show user-friendly message
+      const redirectMessage = isMobile
+        ? "Opening PhonePe app..."
+        : "Redirecting to PhonePe payment...";
+
+      toast.info(redirectMessage, "Please complete the payment");
+
+      if (isMobile) {
+        // On mobile, try to open PhonePe app
+        console.log("📱 Mobile detected - Attempting to open PhonePe app");
+
+        // Try to open the app using location.replace for better deep linking
+        setTimeout(() => {
+          try {
+            // Use replace to avoid adding to browser history
+            window.location.replace(finalCheckoutUrl);
+          } catch (error) {
+            console.error("Failed to open PhonePe app:", error);
+            // Fallback to regular redirect
+            window.location.href = finalCheckoutUrl;
+          }
+        }, 300);
+      } else {
+        // On desktop, use normal redirect
+        console.log("💻 Desktop detected - Redirecting to PhonePe web");
+        setTimeout(() => {
+          window.location.href = finalCheckoutUrl;
+        }, 500);
+      }
 
       /* RAZORPAY IMPLEMENTATION (COMMENTED OUT - KEPT FOR FALLBACK)
       // Step 2: Create Razorpay Order
@@ -275,12 +309,26 @@ function CheckoutPage() {
 
     } catch (err: any) {
       console.error("❌ Payment initiation failed:", err);
-      
+
       // Handle authentication errors
       if (handleAuthenticationError(err, router, mid?.toString())) {
         return;
       }
-      
+
+      // Show specific error message for machine issues
+      if (err.message?.includes("offline") || err.message?.includes("inactive")) {
+        toast({
+          title: "Machine Unavailable",
+          description: err.message,
+          variant: "destructive",
+        });
+        // Optionally redirect back to machine selection after a delay
+        setTimeout(() => {
+          router.push("/order");
+        }, 3000);
+        return;
+      }
+
       // Show user-friendly error message
       showUserFriendlyError(err, "Something went wrong while creating your order. Please try again.");
     } finally {
@@ -306,60 +354,212 @@ function CheckoutPage() {
     if (total === 0) router.push(`/${mid}`);
   }, [items, mid, router]);
 
+  // Show loading while checking auth
+  if (checkingAuth) {
+    return (
+      <div className="w-full min-h-screen flex items-center justify-center">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+      </div>
+    );
+  }
+
   return (
     <>
-      <div className="w-full fixed top-0 z-10">
+      <Head>
+        <title>Checkout - GolBot</title>
+        <meta name="description" content="Review your cart and complete your order" />
+      </Head>
+
+      <div className="min-h-screen bg-background">
         <Navbar />
-      </div>
-      <div className="w-full grid place-items-center">
-        <div className="w-full md:w-1/2 lg:w-1/4 p-8 flex flex-col">
-          <div className="h-20" />
-          <div className="flex w-full">
-            <button onClick={() => router.push(`/${mid}`)}>
-              <ArrowBackIosNewIcon fontSize="small" />
-            </button>
-            <div className="flex-1 basis-0 text-lg text-center">My Cart</div>
-          </div>
-          <div className="h-5" />
-          <div className="w-full flex flex-col">
-            {items.map((item, i) => item.quantity > 0 && <ItemCard key={item.id ?? i} item={item} index={i} />)}
-          </div>
-          <div className={`w-full h-40 grid place-items-center ${amount.total === 0 ? "block" : "hidden"}`}>
-            <div className="text-lg text-gray-500">Your Cart is Empty...</div>
-          </div>
-          <div className="h-12" />
-          <div className="flex flex-col">
-            <div className="flex justify-between">
-              <div className="text-gray-500">Price :</div>
-              <div className="font-semibold text-lg">₹{amount.price}</div>
+        {machineInfo && (
+          <MachineBanner
+            machineId={machineInfo.id}
+            location={machineInfo.location}
+            variant="compact"
+          />
+        )}
+
+        <div className="w-full flex justify-center">
+          <div className="w-full md:w-1/2 lg:w-1/4 min-h-screen pb-32">
+            <div className="pt-[72px]">
+              {/* Header */}
+              <div className="bg-background sticky top-[72px] z-10 border-b shadow-sm">
+                <div className="px-4 py-4">
+                  <div className="flex items-center gap-3">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => router.push(`/${mid}`)}
+                      className="h-9 w-9"
+                    >
+                      <ArrowLeft className="h-5 w-5" />
+                    </Button>
+                    <div className="flex-1">
+                      <h1 className="text-xl font-bold">Review Order</h1>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        {machineInfo && (
+                          <>
+                            <MapPin className="h-3 w-3 text-muted-foreground" />
+                            <p className="text-xs text-muted-foreground">
+                              {machineInfo.location || machineInfo.id}
+                            </p>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Cart Items */}
+              {amount.total === 0 ? (
+                <div className="p-8 flex flex-col items-center justify-center min-h-[400px]">
+                  <div className="h-20 w-20 rounded-full bg-muted flex items-center justify-center mb-4">
+                    <ShoppingCart className="h-10 w-10 text-muted-foreground" />
+                  </div>
+                  <h2 className="text-lg font-semibold mb-2">Your cart is empty</h2>
+                  <p className="text-sm text-muted-foreground text-center mb-6">
+                    Add items from the menu to get started
+                  </p>
+                  <Button onClick={() => router.push(`/${mid}`)} size="lg">
+                    Browse Menu
+                  </Button>
+                </div>
+              ) : (
+                <>
+                  {/* Cart Items Section */}
+                  <div className="px-4 pt-4 pb-2">
+                    <div className="flex items-center gap-2 mb-4">
+                      <Package className="h-5 w-5 text-primary" />
+                      <h2 className="font-bold text-lg">Your Items</h2>
+                      <Badge variant="secondary" className="ml-auto">
+                        {items.filter(i => i.quantity > 0).length} items
+                      </Badge>
+                    </div>
+                  </div>
+
+                  <div className="px-4 pb-4">
+                    <Card className="shadow-md">
+                      <CardContent className="p-4 pt-3">
+                        {items.map((item, i) =>
+                          item.quantity > 0 && (
+                            <CartItemCard
+                              key={item.id ?? i}
+                              item={item}
+                              index={i}
+                              onQuantityChange={(action) => {
+                                if (action === "+" && item.quantity < 10) {
+                                  dispatch(updateCart({ item: { ...item, quantity: item.quantity + 1 }, index: i }))
+                                } else if (action === "-" && item.quantity > 1) {
+                                  dispatch(updateCart({ item: { ...item, quantity: item.quantity - 1 }, index: i }))
+                                }
+                              }}
+                              onRemove={() => dispatch(updateCart({ item: { ...item, quantity: 0 }, index: i }))}
+                            />
+                          )
+                        )}
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  {/* Delivery Info Section */}
+                  <div className="px-4 pb-4">
+                    <Card className="shadow-md bg-gradient-to-br from-primary/5 to-orange-50/50 dark:from-primary/10 dark:to-orange-950/20 border-primary/20">
+                      <CardContent className="p-5">
+                        <div className="flex items-start gap-3">
+                          <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                            <Clock className="h-5 w-5 text-primary" />
+                          </div>
+                          <div className="flex-1">
+                            <h3 className="font-semibold mb-1 text-sm">Ready in 60 seconds</h3>
+                            <p className="text-xs text-muted-foreground leading-relaxed">
+                              Your order will be prepared fresh and ready for pickup at the vending machine
+                            </p>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  {/* Bill Details Section */}
+                  <div className="px-4 pt-2 pb-2">
+                    <div className="flex items-center gap-2 mb-4">
+                      <Receipt className="h-5 w-5 text-primary" />
+                      <h2 className="font-bold text-lg">Bill Details</h2>
+                    </div>
+                  </div>
+
+                  <div className="px-4 pb-6">
+                    <Card className="shadow-md">
+                      <CardContent className="p-5 space-y-4">
+                        <div className="space-y-3.5">
+                          <div className="flex justify-between items-center">
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm text-muted-foreground">Item Total</span>
+                            </div>
+                            <span className="font-semibold">₹{amount.price.toFixed(0)}</span>
+                          </div>
+
+                          <div className="flex justify-between items-center">
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm text-muted-foreground">Taxes & Charges</span>
+                            </div>
+                            <span className="font-semibold">₹{amount.gst.toFixed(0)}</span>
+                          </div>
+
+                          <Separator className="my-3" />
+
+                          <div className="flex justify-between items-center bg-primary/5 dark:bg-primary/10 -mx-5 -mb-5 px-5 py-4 rounded-b-lg">
+                            <span className="font-bold text-base">TO PAY</span>
+                            <span className="font-bold text-2xl text-primary">₹{amount.total.toFixed(0)}</span>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+                </>
+              )}
             </div>
-            <div className="h-3" />
-            <div className="flex justify-between">
-              <div className="text-gray-500">Taxes :</div>
-              <div className="font-semibold text-lg">₹{amount.gst}</div>
-            </div>
-            <div className="h-3" />
-            <div className="w-full h-[1px] border-b-2 border-dashed border-gray-500" />
-            <div className="h-3" />
-            <div className="flex justify-between">
-              <div className="font-bold text-lg">Total :</div>
-              <div className="font-semibold text-lg">₹{amount.total}</div>
-            </div>
+
+            {/* Fixed Payment Button */}
+            {amount.total > 0 && (
+              <div className="fixed bottom-0 left-0 right-0 md:left-1/2 md:right-auto md:w-1/2 lg:w-1/4 md:-translate-x-1/2 bg-gradient-to-t from-background via-background to-background/80 backdrop-blur-xl border-t shadow-2xl">
+                <div className="p-4 space-y-3">
+                  {/* Payment Summary */}
+                  <div className="flex items-center justify-between px-2">
+                    <div>
+                      <p className="text-xs text-muted-foreground">Total Amount</p>
+                      <p className="text-2xl font-bold">₹{amount.total.toFixed(0)}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs text-muted-foreground">
+                        {items.reduce((acc, i) => acc + i.quantity, 0)} items
+                      </p>
+                      <p className="text-xs font-medium text-green-600">
+                        Incl. all taxes
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Payment Button */}
+                  <Button
+                    onClick={handleConfirmBtnClick}
+                    loading={isConBtnLoading}
+                    disabled={amount.total <= 0 || isConBtnLoading}
+                    className="w-full h-14 text-base font-bold shadow-lg hover:shadow-xl transition-all"
+                    size="lg"
+                  >
+                    <div className="flex items-center justify-between w-full">
+                      <span>{isConBtnLoading ? "Processing Payment..." : "Proceed to Pay"}</span>
+                      {!isConBtnLoading && <span className="text-lg">→</span>}
+                    </div>
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
-
-        <div className="h-12" />
-        <button
-          onClick={handleConfirmBtnClick}
-          disabled={amount.total <= 0}
-          className={`w-full md:w-1/2 lg:w-1/4 py-3 hover:bg-cbluel rounded-md text-white ${amount.total <= 0 ? "bg-cbluel" : "bg-cblue"}`}
-        >
-          {isConBtnLoading ? (
-            <PulseLoader color="#fff" size={10} cssOverride={{ margin: "0px", padding: "0px" }} />
-          ) : (
-            "Confirm Order"
-          )}
-        </button>
       </div>
     </>
   );

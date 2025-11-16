@@ -1,321 +1,503 @@
-import Sidebar from "@/shared/sidebar";
-import Head from "next/head";
-import VisibilityIcon from "@mui/icons-material/Visibility";
-import Link from "next/link";
 import { useEffect, useState } from "react";
-import ReactSlider from "react-slider";
-import { OrderModel } from "@/models/orderModel";
+import Head from "next/head";
 import axios from "axios";
-import { PulseLoader } from "react-spinners";
+import { AppLayout } from "@/components/layout/AppLayout";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Search,
+  Eye,
+  Filter,
+  Calendar,
+  Phone,
+  IndianRupee,
+  ShoppingBag,
+  Package,
+  TrendingUp,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
+import { toast } from "sonner";
+import { useRouter } from "next/router";
 
-function OrderTableRow({ order }: { order: OrderModel }) {
-  return (
-    <tr className="bg-white border-b">
-      <th className="px-6 py-4 font-medium text-gray-900 whitespace-nowrap text-left">
-        {order.orderId}
-      </th>
-      <td className="px-6 py-4 text-left">{order.phone}</td>
-      <td className="px-6 py-4 text-left">{order.machineId}</td>
-      <td className="px-6 py-4 text-left uppercase ">{order.ostatus}</td>
-      <td className="px-6 py-4 text-right">{order.orderDate.slice(0, 10)}</td>
-      <td className="px-6 py-4 text-right uppercase">₹{order.amount}</td>
-      <td className="px-6 py-4 text-right">
-        <Link
-          href="/"
-          className="mr-2 p-2 font-medium text-cblue hover:bg-gray-200 rounded-full">
-          <VisibilityIcon />
-        </Link>
-      </td>
-    </tr>
-  );
+interface OrderItem {
+  itemId: string;
+  name: string;
+  quantity: number;
+  price: number;
+  gst: number;
 }
 
-function Orders() {
-  const [isSearchLoading, setIsSearchLoading] = useState(false);
-  const [pgVal, setPgVal] = useState(1);
-  const [totPages, setTotPages] = useState(1);
-  const [queryObj, setQueryObj] = useState({
-    orderId: "",
-    machineId: "",
-    ostatus: "ALL",
-    phone: "",
-    minAmt: 30,
-    maxAmt: 1000,
-    date: "",
-  });
-  const [orderList, setOrderList] = useState<OrderModel[]>([]);
-  const [orderCounts, setOrderCounts] = useState({
+interface Order {
+  orderId: string;
+  phone: string;
+  machineId: string;
+  mid?: string;
+  ostatus: string;
+  orderStatus?: string;
+  amount: number;
+  totalAmount?: number;
+  orderDate?: string;
+  createdAt: string;
+  items?: OrderItem[];
+}
+
+interface OrderCounts {
+  totAmt: number;
+  GOLQty: number;
+  PANQty: number;
+  PWOQty: number;
+}
+
+export default function Orders() {
+  const router = useRouter();
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchLoading, setSearchLoading] = useState(false);
+
+  // Filters
+  const [searchQuery, setSearchQuery] = useState("");
+  const [orderIdFilter, setOrderIdFilter] = useState("");
+  const [phoneFilter, setPhoneFilter] = useState("");
+  const [machineIdFilter, setMachineIdFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("ALL");
+  const [dateFilter, setDateFilter] = useState("");
+  const [minAmount, setMinAmount] = useState(30);
+  const [maxAmount, setMaxAmount] = useState(1000);
+
+  // Pagination
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+
+  // Order counts
+  const [orderCounts, setOrderCounts] = useState<OrderCounts>({
     totAmt: 0,
     GOLQty: 0,
     PANQty: 0,
     PWOQty: 0,
   });
 
-  async function getAllOrders() {
-    setIsSearchLoading(true);
-    if (!process.env.NEXT_PUBLIC_SERVER_URL) throw "Server Url Not Set";
-    const url =
-      process.env.NEXT_PUBLIC_SERVER_URL + "/order/admin/getallorders";
+  useEffect(() => {
+    fetchOrders();
+  }, [page]);
 
+  async function fetchOrders() {
+    setSearchLoading(true);
     try {
-      var res = await axios.get(url, {
+      const baseUrl = process.env.NEXT_PUBLIC_SERVER_URL;
+      if (!baseUrl) throw new Error("Server URL not set");
+
+      const res = await axios.get(`${baseUrl}/order/admin/all`, {
         params: {
-          orderId: queryObj.orderId,
-          machineId: queryObj.machineId,
-          ostatus: queryObj.ostatus,
-          phone: queryObj.phone,
-          minAmt: queryObj.minAmt,
-          maxAmt: queryObj.maxAmt,
-          date: queryObj.date,
-          page: pgVal,
+          orderId: orderIdFilter || undefined,
+          machineId: machineIdFilter || undefined,
+          orderStatus: statusFilter !== "ALL" ? statusFilter : undefined,
+          phone: phoneFilter || undefined,
+          minAmt: minAmount,
+          maxAmt: maxAmount,
+          date: dateFilter || undefined,
+          page,
         },
         headers: {
-          "Content-Type": "application/json",
           Authorization: `Bearer ${localStorage.getItem("Token")}`,
         },
       });
 
       if (res.status === 200) {
-        setOrderList(res.data.result.orders);
-        setTotPages(res.data.result.numOfPages);
-        setOrderCounts(res.data.result.orderCounts);
+        setOrders(res.data.result.orders || []);
+        setTotalPages(res.data.result.numOfPages || 1);
+        setOrderCounts(res.data.result.orderCounts || {
+          totAmt: 0,
+          GOLQty: 0,
+          PANQty: 0,
+          PWOQty: 0,
+        });
       }
-    } catch (e: any) {}
-    setIsSearchLoading(false);
+    } catch (error: any) {
+      console.error("Failed to fetch orders:", error);
+      toast.error("Failed to load orders");
+    } finally {
+      setSearchLoading(false);
+      setLoading(false);
+    }
   }
 
-  useEffect(() => {
-    getAllOrders();
-  }, [pgVal]);
+  const handleSearch = () => {
+    setPage(1);
+    fetchOrders();
+  };
+
+  const handleClearFilters = () => {
+    setOrderIdFilter("");
+    setPhoneFilter("");
+    setMachineIdFilter("");
+    setStatusFilter("ALL");
+    setDateFilter("");
+    setMinAmount(30);
+    setMaxAmount(1000);
+    setPage(1);
+  };
+
+  const getStatusBadge = (status: string) => {
+    const normalizedStatus = status?.toUpperCase() || "";
+
+    switch (normalizedStatus) {
+      case "PENDING":
+        return <Badge variant="warning" className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100">PENDING</Badge>;
+      case "PAID":
+        return <Badge variant="default" className="bg-blue-100 text-blue-800 hover:bg-blue-100">PAID</Badge>;
+      case "PREPARING":
+        return <Badge variant="warning" className="bg-orange-100 text-orange-800 hover:bg-orange-100">PREPARING</Badge>;
+      case "COMPLETED":
+        return <Badge variant="success" className="bg-green-100 text-green-800 hover:bg-green-100">COMPLETED</Badge>;
+      case "CANCELLED":
+      case "CANCELED":
+        return <Badge variant="destructive" className="bg-red-100 text-red-800 hover:bg-red-100">CANCELLED</Badge>;
+      case "READY":
+      case "READY_FOR_PICKUP":
+        return <Badge variant="default" className="bg-purple-100 text-purple-800 hover:bg-purple-100">READY</Badge>;
+      default:
+        return <Badge variant="secondary">{status}</Badge>;
+    }
+  };
+
+  const filteredOrders = orders.filter(order => {
+    if (!searchQuery) return true;
+    const query = searchQuery.toLowerCase();
+    return (
+      order.orderId?.toLowerCase().includes(query) ||
+      order.phone?.toLowerCase().includes(query) ||
+      order.machineId?.toLowerCase().includes(query) ||
+      (order.mid && order.mid.toLowerCase().includes(query))
+    );
+  });
 
   return (
     <>
       <Head>
-        <title>Orders</title>
-        <meta name="description" content="Generated by create next app" />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <link rel="icon" href="/favicon.ico" />
+        <title>Orders - GolBot Admin</title>
       </Head>
-      <main className="w-screen flex">
-        {/* sideBar */}
-        <div className="w-72 h-screen fixed">
-          <Sidebar />
-        </div>
-        {/* content */}
-        <div className="w-[20%]" />
-        <div className="w-[80%] h-full p-10 flex flex-col">
-          {/* Filter Box */}
-          <div className="w-full p-10 flex flex-col bg-slate-200 rounded-md">
-            <div className="text-4xl">Filter</div>
-            <div className="h-10" />
-            <div className="w-full grid gap-5 grid-cols-2 md:grid-cols-3">
-              {/*  */}
-              <div className="flex flex-col">
-                <div className="font-semibold text-sm ml-1">Order Id</div>
-                <div className="h-2" />
-                <input
-                  className="p-1 px-2 rounded-md border border-gray-400"
-                  value={queryObj.orderId}
-                  onChange={(v) =>
-                    setQueryObj((f) => ({ ...f, orderId: v.target.value }))
-                  }
-                  type="text"
-                />
-              </div>
-              {/*  */}
-              <div className="flex flex-col">
-                <div className="font-semibold text-sm ml-1">Phone</div>
-                <div className="h-2" />
-                <input
-                  className="p-1 px-2 rounded-md border border-gray-400"
-                  value={queryObj.phone}
-                  onChange={(v) =>
-                    setQueryObj((f) => ({ ...f, phone: v.target.value }))
-                  }
-                  type="text"
-                />
-              </div>
-              {/*  */}
-              <div className="flex flex-col">
-                <div className="font-semibold text-sm ml-1">Machine Id</div>
-                <div className="h-2" />
-                <input
-                  className="p-1 px-2 rounded-md border border-gray-400"
-                  value={queryObj.machineId}
-                  onChange={(v) =>
-                    setQueryObj((f) => ({ ...f, machineId: v.target.value }))
-                  }
-                  type="text"
-                />
-              </div>
-              {/*  */}
-              <div className="flex flex-col">
-                <div className="font-semibold text-sm ml-1">Status</div>
-                <div className="h-2" />
-                <select
-                  className="p-1 px-2 rounded-md border border-gray-400"
-                  onChange={(v) =>
-                    setQueryObj((f) => ({ ...f, ostatus: v.target.value }))
-                  }>
-                  <option>ALL</option>
-                  <option>PENDING</option>
-                  <option>READY</option>
-                  <option>PREPARING</option>
-                  <option>COMPLETED</option>
-                  <option>CANCELED</option>
-                </select>
-              </div>
 
-              {/*  */}
-              <div className="flex flex-col">
-                <div className="font-semibold text-sm ml-1">Date</div>
-                <div className="h-2" />
-                <input
-                  className="p-1 px-2 rounded-md border border-gray-400"
-                  onChange={(v) =>
-                    setQueryObj((f) => ({ ...f, date: v.target.value }))
-                  }
-                  type="date"
-                />
+      <AppLayout title="Orders" description="Manage and track all orders">
+        <div className="space-y-6">
+          {/* Stats Cards */}
+          <div className="grid gap-4 md:grid-cols-4">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  Total Revenue
+                </CardTitle>
+                <IndianRupee className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">₹{orderCounts.totAmt.toLocaleString('en-IN')}</div>
+                <p className="text-xs text-muted-foreground mt-1">From filtered orders</p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  Golgappa Orders
+                </CardTitle>
+                <Package className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{orderCounts.GOLQty}</div>
+                <p className="text-xs text-muted-foreground mt-1">Total quantity</p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  Pani Puri
+                </CardTitle>
+                <Package className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{orderCounts.PANQty}</div>
+                <p className="text-xs text-muted-foreground mt-1">Total quantity</p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  Pani Puri (No Onions)
+                </CardTitle>
+                <Package className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{orderCounts.PWOQty}</div>
+                <p className="text-xs text-muted-foreground mt-1">Total quantity</p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Filters Card */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Filter className="h-5 w-5" />
+                    Filters
+                  </CardTitle>
+                  <CardDescription>Search and filter orders</CardDescription>
+                </div>
+                <Button variant="outline" size="sm" onClick={handleClearFilters}>
+                  Clear All
+                </Button>
               </div>
-
-              {/*  */}
-              <div className="flex flex-col">
-                <div className="font-semibold text-sm ml-1">Amount</div>
-                <div className="h-2" />
-
-                <div className="h-full relative">
-                  <ReactSlider
-                    className="bg-black border-2 absolute"
-                    thumbClassName="p-1 text-white bg-cblue rounded-md"
-                    trackClassName="bg-black"
-                    min={30}
-                    max={1000}
-                    defaultValue={[queryObj.minAmt, queryObj.maxAmt]}
-                    renderThumb={(props, state) => (
-                      <div {...props}>{state.valueNow}</div>
-                    )}
-                    renderTrack={(props, state) => (
-                      <div {...props} style={{ backgroundColor: "red" }} />
-                    )}
-                    onChange={(v) =>
-                      setQueryObj((f) => ({ ...f, minAmt: v[0], maxAmt: v[1] }))
-                    }
-                    pearling
-                    minDistance={10}
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-4 md:grid-cols-3">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Order ID</label>
+                  <Input
+                    placeholder="Search by order ID"
+                    value={orderIdFilter}
+                    onChange={(e) => setOrderIdFilter(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleSearch()}
                   />
-                  <div className="mt-3 mx-1 h-1 bg-cbluel" />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Phone Number</label>
+                  <Input
+                    placeholder="Search by phone"
+                    value={phoneFilter}
+                    onChange={(e) => setPhoneFilter(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Machine ID</label>
+                  <Input
+                    placeholder="Search by machine ID"
+                    value={machineIdFilter}
+                    onChange={(e) => setMachineIdFilter(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Status</label>
+                  <Select value={statusFilter} onValueChange={setStatusFilter}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ALL">All Status</SelectItem>
+                      <SelectItem value="PENDING">Pending</SelectItem>
+                      <SelectItem value="PAID">Paid</SelectItem>
+                      <SelectItem value="PREPARING">Preparing</SelectItem>
+                      <SelectItem value="READY">Ready</SelectItem>
+                      <SelectItem value="COMPLETED">Completed</SelectItem>
+                      <SelectItem value="CANCELLED">Cancelled</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Date</label>
+                  <Input
+                    type="date"
+                    value={dateFilter}
+                    onChange={(e) => setDateFilter(e.target.value)}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Amount Range</label>
+                  <div className="flex gap-2 items-center">
+                    <Input
+                      type="number"
+                      placeholder="Min"
+                      value={minAmount}
+                      onChange={(e) => setMinAmount(parseInt(e.target.value) || 0)}
+                      className="w-24"
+                    />
+                    <span className="text-muted-foreground">-</span>
+                    <Input
+                      type="number"
+                      placeholder="Max"
+                      value={maxAmount}
+                      onChange={(e) => setMaxAmount(parseInt(e.target.value) || 1000)}
+                      className="w-24"
+                    />
+                  </div>
                 </div>
               </div>
 
-              {/*  */}
-              <div className="flex flex-col col-span-3">
-                <div className="h-7" />
-                <button
-                  className="p-1 rounded-md border border-cblue text-white bg-cblue hover:text-cblue hover:bg-transparent"
-                  onClick={getAllOrders}>
-                  {isSearchLoading ? <PulseLoader /> : "Search"}
-                </button>
+              <div className="mt-4">
+                <Button onClick={handleSearch} disabled={searchLoading} className="w-full md:w-auto">
+                  <Search className="mr-2 h-4 w-4" />
+                  {searchLoading ? "Searching..." : "Search Orders"}
+                </Button>
               </div>
-            </div>
-          </div>
+            </CardContent>
+          </Card>
 
-          {/* table */}
-          <div className="h-10" />
-          <div className="w-full p-10 flex flex-col bg-slate-200 rounded-md">
-            {/* Order counts */}
+          {/* Orders Table */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>All Orders</CardTitle>
+                  <CardDescription>
+                    {filteredOrders.length} order{filteredOrders.length !== 1 ? 's' : ''} found
+                  </CardDescription>
+                </div>
+                <div className="relative flex-1 max-w-sm ml-4">
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    placeholder="Quick search..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-9"
+                  />
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Order ID</TableHead>
+                      <TableHead>Phone</TableHead>
+                      <TableHead>Machine ID</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Date</TableHead>
+                      <TableHead className="text-right">Amount</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {loading ? (
+                      Array.from({ length: 10 }).map((_, i) => (
+                        <TableRow key={i}>
+                          <TableCell><Skeleton className="h-4 w-32" /></TableCell>
+                          <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                          <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+                          <TableCell><Skeleton className="h-6 w-20" /></TableCell>
+                          <TableCell><Skeleton className="h-4 w-28" /></TableCell>
+                          <TableCell><Skeleton className="h-4 w-16 ml-auto" /></TableCell>
+                          <TableCell><Skeleton className="h-8 w-20 ml-auto" /></TableCell>
+                        </TableRow>
+                      ))
+                    ) : filteredOrders.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={7} className="text-center py-12">
+                          <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                            <ShoppingBag className="h-12 w-12 opacity-20" />
+                            <p className="text-lg font-medium">No orders found</p>
+                            <p className="text-sm">Try adjusting your filters or search query</p>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      filteredOrders.map((order) => (
+                        <TableRow key={order.orderId} className="hover:bg-muted/50">
+                          <TableCell className="font-mono font-medium">
+                            {order.orderId}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <Phone className="h-3 w-3 text-muted-foreground" />
+                              <span>{order.phone}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="font-mono">
+                            {order.mid || order.machineId}
+                          </TableCell>
+                          <TableCell>
+                            {getStatusBadge(order.orderStatus || order.ostatus)}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <Calendar className="h-3 w-3 text-muted-foreground" />
+                              <span className="text-sm">
+                                {new Date(order.createdAt || order.orderDate || '').toLocaleDateString('en-IN')}
+                              </span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right font-semibold">
+                            ₹{(order.totalAmount || order.amount || 0).toLocaleString('en-IN')}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => router.push(`/orders/${order.orderId}`)}
+                            >
+                              <Eye className="h-4 w-4 mr-2" />
+                              View
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
 
-            <div className="w-full p-5 flex justify-between">
-              <div>
-                Total amount :{" "}
-                <span className="p-2 bg-white rounded-lg">
-                  ₹{orderCounts.totAmt}
-                </span>{" "}
-              </div>
-              <div>
-                Golgappa :{" "}
-                <span className="p-2 px-3 bg-white rounded-lg">
-                  {orderCounts.GOLQty}
-                </span>{" "}
-              </div>
-              <div>
-                Pani Puri :{" "}
-                <span className="p-2 px-3 bg-white rounded-lg">
-                  {orderCounts.PANQty}
-                </span>{" "}
-              </div>
-              <div>
-                Pani Puri without Onions :{" "}
-                <span className="p-2 px-3 bg-white rounded-lg">
-                  {orderCounts.PWOQty}
-                </span>{" "}
-              </div>
-            </div>
-
-            <div className="h-5" />
-            {/* table */}
-            <div className="w-full overflow-x-auto rounded-lg">
-              <table className="w-full text-sm text-left text-gray-500">
-                <thead className="text-gray-900 uppercase bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left">Order id</th>
-                    <th className="px-6 py-3 text-left">phone</th>
-                    <th className="px-6 py-3 text-left">Machine ID</th>
-                    <th className="px-6 py-3 text-left">status</th>
-                    <th className="px-6 py-3 text-right">Order date</th>
-                    <th className="px-6 py-3 text-right">Amount</th>
-                    <th className="px-6 py-3 text-right">Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {orderList.map((order, i) => (
-                    <OrderTableRow key={i} order={order} />
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            {/* pagination bar */}
-            <div className="h-3" />
-            <div className="w-full p-3 grid place-items-center">
-              <div className="flex border border-cblue rounded-xl">
-                <button
-                  className="p-2 border-r border-cblue bg-cblue text-white hover:bg-transparent hover:text-cblue rounded-l-lg"
-                  onClick={() => {
-                    if (pgVal > 1) setPgVal((v) => (v -= 1));
-                  }}>
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-muted-foreground">
+                Page {page} of {totalPages}
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage(p => Math.max(1, p - 1))}
+                  disabled={page === 1 || searchLoading}
+                >
+                  <ChevronLeft className="h-4 w-4 mr-1" />
                   Previous
-                </button>
-                <div className="flex px-3 justify-center items-center">
-                  <input
-                    className="w-10 px-1 m-1 mr-3 rounded-md border text-center"
-                    // value={1}
-                    type="text"
-                    pattern="[0-9]*"
-                    value={pgVal}
+                </Button>
+                <div className="flex items-center gap-2 px-4">
+                  <Input
+                    type="number"
+                    min={1}
+                    max={totalPages}
+                    value={page}
                     onChange={(e) => {
-                      const num =
-                        parseInt(e.target.value.replace("/D/g", "")) || 0;
-                      if (num > totPages) return;
-                      setPgVal(num);
+                      const val = parseInt(e.target.value);
+                      if (val >= 1 && val <= totalPages) {
+                        setPage(val);
+                      }
                     }}
+                    className="w-16 text-center"
                   />
-                  <div className="text-gray-600 text-lg mr-1">/ {totPages}</div>
+                  <span className="text-sm text-muted-foreground">of {totalPages}</span>
                 </div>
-                <button
-                  className="p-2 border-l border-cblue bg-cblue text-white hover:bg-transparent hover:text-cblue rounded-r-lg"
-                  onClick={() => {
-                    if (pgVal < totPages) setPgVal((v) => (v += 1));
-                  }}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                  disabled={page === totalPages || searchLoading}
+                >
                   Next
-                </button>
+                  <ChevronRight className="h-4 w-4 ml-1" />
+                </Button>
               </div>
             </div>
-          </div>
+          )}
         </div>
-      </main>
+      </AppLayout>
     </>
   );
 }
-
-export default Orders;

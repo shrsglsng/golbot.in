@@ -22,6 +22,7 @@ import PaymentRoute from "./routes/paymentRoutes.js";
 import PhonePeRoute from "./routes/phonePeRoutes.js";
 import paymentWebhook from "./routes/paymentWebhook.js";
 import PublicMachineRoute from "./routes/publicMachineRoute.js";
+import ReportRoute from "./routes/reportRoute.js";
 
 import { getAllItems } from "./controllers/utilController.js";
 
@@ -90,19 +91,32 @@ console.log("🌍 NODE_ENV:", NODE_ENV);
 const corsOptions = {
   origin: function (origin, callback) {
     console.log("🌍 Incoming request from origin:", origin);
-    
-    // Allow requests with no origin (e.g., mobile apps, Postman)
+
+    // Allow requests with no origin (e.g., mobile apps, Postman, same-origin)
     if (!origin) {
-      console.log("✅ Allowing request with no origin");
+      console.log("✅ Allowing request with no origin (mobile app/same-origin)");
       return callback(null, true);
     }
-    
-    // Check if origin is in allowed list
+
+    // Check if origin is in allowed list (exact match)
     if (allowedOrigins && allowedOrigins.includes(origin)) {
-      console.log("✅ Origin allowed:", origin);
+      console.log("✅ Origin allowed (exact match):", origin);
       return callback(null, true);
-    } 
-    
+    }
+
+    // Check if origin matches any allowed origin pattern (for local network IPs)
+    const isAllowedPattern = allowedOrigins.some(allowedOrigin => {
+      // Handle local network addresses with different ports
+      const originHost = origin.replace(/https?:\/\//, '').split(':')[0];
+      const allowedHost = allowedOrigin.replace(/https?:\/\//, '').split(':')[0];
+      return originHost === allowedHost;
+    });
+
+    if (isAllowedPattern) {
+      console.log("✅ Origin allowed (host match):", origin);
+      return callback(null, true);
+    }
+
     // For mobile apps (Flutter web or other), check if they have the mobile API key
     // This allows mobile apps to pass CORS and then be validated by our mobile auth middleware
     const isMobileOrigin = origin && !allowedOrigins.some(allowedOrigin => origin.includes(allowedOrigin.replace('http://', '').replace('https://', '')));
@@ -110,7 +124,7 @@ const corsOptions = {
       console.log("🔒 Mobile origin detected, allowing through for API key validation:", origin);
       return callback(null, true);
     }
-    
+
     console.error("❌ CORS Blocked - Origin not in allowed list:", origin);
     console.error("📋 Allowed origins:", allowedOrigins);
     return callback(new Error("Not allowed by CORS"));
@@ -157,6 +171,7 @@ app.use(`${BASE_URL_PATH}machine`, MachineRoute);
 app.use(`${BASE_URL_PATH}payment`, PaymentRoute);
 app.use(`${BASE_URL_PATH}machines`, PublicMachineRoute);
 app.use(`${BASE_URL_PATH}phonepe`, PhonePeRoute);
+app.use(`${BASE_URL_PATH}reports`, ReportRoute);
 
 // Utility routes
 app.get(`${BASE_URL_PATH}getAllItems`, getAllItems);
@@ -185,14 +200,22 @@ const connectDB = async (retries = 5) => {
     });
 
     logger.info('✅ MongoDB connected successfully');
-    
+
     // Start server after successful DB connection
-    const server = app.listen(PORT, () => {
+    // Listen on 0.0.0.0 to accept connections from all network interfaces
+    const server = app.listen(PORT, '0.0.0.0', () => {
       logger.info(`⚡️ Server running successfully`, {
         port: PORT,
+        host: '0.0.0.0',
         environment: NODE_ENV,
-        mongoConnected: mongoose.connection.readyState === 1
+        mongoConnected: mongoose.connection.readyState === 1,
+        localUrl: `http://localhost:${PORT}`,
+        networkUrl: `http://192.168.31.158:${PORT}` // Your local network IP
       });
+      console.log(`\n🌐 Server accessible at:`);
+      console.log(`   Local:   http://localhost:${PORT}`);
+      console.log(`   Network: http://192.168.31.158:${PORT}`);
+      console.log(`\n📱 Mobile devices can connect to: http://192.168.31.158:${PORT}\n`);
     });
 
     // Graceful shutdown handling

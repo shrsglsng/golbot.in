@@ -54,6 +54,16 @@ export default function MachineQRManager({
 
   const [generatedQR, setGeneratedQR] = useState<QRTokenGenerateResult | null>(null);
   const [copiedUrl, setCopiedUrl] = useState(false);
+  const [selectedToken, setSelectedToken] = useState<QRToken | null>(null);
+
+  // Helper function to build QR URL from token
+  const buildQRUrl = (token: QRToken): string => {
+    if (token.url) return token.url;
+
+    // Construct URL from token and base URL
+    const baseUrl = process.env.NEXT_PUBLIC_USER_WEB_URL || "http://localhost:3000";
+    return `${baseUrl}/order?mt=${token.token}`;
+  };
 
   useEffect(() => {
     if (open && machineId) {
@@ -76,21 +86,18 @@ export default function MachineQRManager({
   };
 
   const handleGenerateToken = async () => {
-    if (!newTokenLabel.trim()) {
-      setError("Please enter a label for the QR code");
-      return;
-    }
-
     setGenerating(true);
     setError(null);
     setSuccess(null);
 
     try {
-      const result = await generateMachineQRToken(machineId, newTokenLabel.trim());
+      // Use provided label or generate a default one
+      const label = newTokenLabel.trim() || `QR-${Date.now()}`;
+      const result = await generateMachineQRToken(machineId, label);
       setGeneratedQR(result);
       setNewTokenLabel("");
       setShowGenerateForm(false);
-      setSuccess(`QR code "${result.qrCode.label}" generated successfully!`);
+      setSuccess(`QR code generated successfully!`);
 
       // Reload tokens list
       await loadTokens();
@@ -118,37 +125,82 @@ export default function MachineQRManager({
     }
   };
 
-  const handleDownloadQR = () => {
-    if (!generatedQR) return;
+  const handleDownloadQR = (elementId: string, fileName: string) => {
+    try {
+      // Get the container element
+      const container = document.getElementById(elementId);
+      if (!container) {
+        console.error("QR container not found:", elementId);
+        return;
+      }
 
-    // Get the SVG element
-    const svg = document.getElementById("qr-code-svg");
-    if (!svg) return;
+      // Find the SVG element inside the container
+      const svg = container.querySelector("svg");
+      if (!svg) {
+        console.error("SVG not found in container:", elementId);
+        return;
+      }
 
-    // Convert SVG to PNG
-    const svgData = new XMLSerializer().serializeToString(svg);
-    const canvas = document.createElement("canvas");
-    const ctx = canvas.getContext("2d");
-    const img = new Image();
+      // Get SVG dimensions
+      const svgRect = svg.getBoundingClientRect();
+      const width = svgRect.width || 200;
+      const height = svgRect.height || 200;
 
-    img.onload = () => {
-      canvas.width = img.width;
-      canvas.height = img.height;
-      ctx?.drawImage(img, 0, 0);
+      // Create canvas with proper dimensions
+      const canvas = document.createElement("canvas");
+      const scale = 2; // Higher resolution
+      canvas.width = width * scale;
+      canvas.height = height * scale;
 
-      canvas.toBlob((blob) => {
-        if (blob) {
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement("a");
-          a.href = url;
-          a.download = `${generatedQR.qrCode.machineId}-QR-${generatedQR.qrCode.label}.png`;
-          a.click();
-          URL.revokeObjectURL(url);
-        }
-      });
-    };
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        console.error("Could not get canvas context");
+        return;
+      }
 
-    img.src = "data:image/svg+xml;base64," + btoa(svgData);
+      // Scale for better quality
+      ctx.scale(scale, scale);
+
+      // Serialize SVG
+      const svgData = new XMLSerializer().serializeToString(svg);
+      const svgBlob = new Blob([svgData], { type: "image/svg+xml;charset=utf-8" });
+      const url = URL.createObjectURL(svgBlob);
+
+      const img = new Image();
+      img.onload = () => {
+        // Fill white background
+        ctx.fillStyle = "white";
+        ctx.fillRect(0, 0, width, height);
+
+        // Draw image
+        ctx.drawImage(img, 0, 0, width, height);
+
+        // Convert to blob and download
+        canvas.toBlob((blob) => {
+          if (blob) {
+            const downloadUrl = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = downloadUrl;
+            a.download = fileName;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(downloadUrl);
+            URL.revokeObjectURL(url);
+          }
+        }, "image/png");
+      };
+
+      img.onerror = (err) => {
+        console.error("Image load error:", err);
+        URL.revokeObjectURL(url);
+      };
+
+      img.src = url;
+    } catch (error) {
+      console.error("Download QR error:", error);
+      alert("Failed to download QR code. Please try again.");
+    }
   };
 
   const handleCopyUrl = async () => {
@@ -198,7 +250,7 @@ export default function MachineQRManager({
                 </div>
                 <Button
                   startIcon={<Download />}
-                  onClick={handleDownloadQR}
+                  onClick={() => handleDownloadQR("qr-code-svg", `${generatedQR.qrCode.machineId}-QR-${generatedQR.qrCode.label}.png`)}
                   variant="contained"
                   size="small"
                   sx={{ mt: 2, width: "100%" }}
@@ -244,9 +296,13 @@ export default function MachineQRManager({
             <Typography variant="subtitle1" gutterBottom>
               Generate New QR Code
             </Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ mb: 2, display: "block" }}>
+              Label is optional. Leave empty for auto-generated label.
+            </Typography>
             <Box display="flex" gap={2} alignItems="center">
               <TextField
-                label="Label (e.g., Main QR, Backup QR)"
+                label="Label (Optional)"
+                placeholder="e.g., Main QR, Backup QR"
                 value={newTokenLabel}
                 onChange={(e) => setNewTokenLabel(e.target.value)}
                 size="small"
@@ -268,14 +324,23 @@ export default function MachineQRManager({
         )}
 
         {!showGenerateForm && (
-          <Button
-            startIcon={<Add />}
-            variant="outlined"
-            onClick={() => setShowGenerateForm(true)}
-            sx={{ mb: 3 }}
-          >
-            Generate New QR Code
-          </Button>
+          <Box display="flex" gap={2} mb={3}>
+            <Button
+              startIcon={<Add />}
+              variant="contained"
+              onClick={handleGenerateToken}
+              disabled={generating}
+            >
+              {generating ? <CircularProgress size={24} /> : "Quick Generate QR"}
+            </Button>
+            <Button
+              startIcon={<Add />}
+              variant="outlined"
+              onClick={() => setShowGenerateForm(true)}
+            >
+              Generate with Label
+            </Button>
+          </Box>
         )}
 
         <Divider sx={{ my: 2 }} />
@@ -301,7 +366,7 @@ export default function MachineQRManager({
                 elevation={1}
                 sx={{ p: 2, mb: 2, opacity: token.isActive ? 1 : 0.6 }}
               >
-                <Box display="flex" justifyContent="space-between" alignItems="center">
+                <Box display="flex" justifyContent="space-between" alignItems="flex-start" gap={2}>
                   <Box flex={1}>
                     <Box display="flex" alignItems="center" gap={1}>
                       <Typography variant="subtitle1">{token.label}</Typography>
@@ -317,17 +382,48 @@ export default function MachineQRManager({
                     <Typography variant="caption" color="text.secondary" display="block">
                       Token ID: {token.tokenId}
                     </Typography>
+
+                    {/* Show QR code if selected */}
+                    {selectedToken?.tokenId === token.tokenId && token.isActive && (
+                      <Box mt={2} p={2} bgcolor="grey.50" borderRadius={1}>
+                        <div id={`qr-token-${token.tokenId}`}>
+                          <QRCode value={buildQRUrl(token)} size={150} />
+                        </div>
+                        <Button
+                          startIcon={<Download />}
+                          onClick={() => handleDownloadQR(`qr-token-${token.tokenId}`, `${machineId}-QR-${token.label}.png`)}
+                          variant="outlined"
+                          size="small"
+                          sx={{ mt: 1, width: "100%" }}
+                        >
+                          Download
+                        </Button>
+                      </Box>
+                    )}
                   </Box>
 
-                  {token.isActive && (
-                    <IconButton
-                      onClick={() => handleRevokeToken(token.tokenId)}
-                      color="error"
-                      title="Revoke this QR code"
-                    >
-                      <Delete />
-                    </IconButton>
-                  )}
+                  <Box display="flex" gap={1}>
+                    {token.isActive && (
+                      <>
+                        <IconButton
+                          onClick={() => setSelectedToken(selectedToken?.tokenId === token.tokenId ? null : token)}
+                          color="primary"
+                          title={selectedToken?.tokenId === token.tokenId ? "Hide QR" : "View QR"}
+                          size="small"
+                        >
+                          <QrCode />
+                        </IconButton>
+                        <IconButton
+                          onClick={() => handleRevokeToken(token.tokenId)}
+                          color="error"
+                          title="Revoke this QR code"
+                          size="small"
+                        >
+                          <Delete />
+                        </IconButton>
+                      </>
+                    )}
+                  </Box>
                 </Box>
               </Paper>
             ))}

@@ -1,52 +1,97 @@
-import Sidebar from "@/shared/sidebar";
-import axios from "axios";
+import { useState } from "react";
 import Head from "next/head";
 import { useRouter } from "next/router";
-import { useState } from "react";
-import { PulseLoader } from "react-spinners";
+import axios from "axios";
 import validator from "validator";
+import { AppLayout } from "@/components/layout/AppLayout";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { ArrowLeft, UserPlus, Mail, Lock, CheckCircle2 } from "lucide-react";
+import { toast } from "sonner";
 
-function AddAdmin() {
+interface Credentials {
+  email: string;
+  password: string;
+  conPassword: string;
+}
+
+export default function AddAdmin() {
   const router = useRouter();
-
-  const initVars = {
+  const [credentials, setCredentials] = useState<Credentials>({
     email: "",
     password: "",
     conPassword: "",
-  };
-  const [credentials, setCredentials] = useState(initVars);
-  const [credError, setCredError] = useState(initVars);
+  });
+  const [errors, setErrors] = useState<Credentials>({
+    email: "",
+    password: "",
+    conPassword: "",
+  });
   const [isLoading, setIsLoading] = useState(false);
 
-  async function addAdminService() {
-    setCredError(initVars);
+  const validateForm = (): boolean => {
+    const newErrors: Credentials = {
+      email: "",
+      password: "",
+      conPassword: "",
+    };
+
+    let isValid = true;
+
+    if (!validator.isEmail(credentials.email)) {
+      newErrors.email = "Enter a valid email address";
+      isValid = false;
+    }
+
+    if (credentials.password.length < 6) {
+      newErrors.password = "Password must be at least 6 characters";
+      isValid = false;
+    }
+
+    if (credentials.password !== credentials.conPassword) {
+      newErrors.conPassword = "Passwords don't match";
+      isValid = false;
+    }
+
+    setErrors(newErrors);
+    return isValid;
+  };
+
+  const handleSubmit = async () => {
+    setErrors({
+      email: "",
+      password: "",
+      conPassword: "",
+    });
+
+    if (!validateForm()) {
+      toast.error("Validation Error", {
+        description: "Please fix the errors in the form",
+      });
+      return;
+    }
+
     setIsLoading(true);
 
-    if (!process.env.NEXT_PUBLIC_SERVER_URL) throw "Server Url Not Set";
-    const url = process.env.NEXT_PUBLIC_SERVER_URL + "/auth/admin/register";
-
-    // validation
-    if (!validator.isEmail(credentials.email)) {
-      setCredError((f) => ({ ...f, email: "Enter a valid Email" }));
-      setIsLoading(false);
-      return;
-    }
-    if (credentials.password.length === 0) {
-      setCredError((f) => ({ ...f, password: "Enter password" }));
-      setIsLoading(false);
-      return;
-    }
-    if (credentials.password !== credentials.conPassword) {
-      setCredError((f) => ({ ...f, conPassword: "Passwords don't match" }));
-      setIsLoading(false);
-      return;
-    }
-
-    // send request
     try {
-      var res = await axios.post(
+      const baseUrl = process.env.NEXT_PUBLIC_SERVER_URL;
+      if (!baseUrl) {
+        toast.error("Configuration Error", {
+          description: "Server URL not set",
+        });
+        return;
+      }
+
+      const url = `${baseUrl}/admin/register`;
+
+      const res = await axios.post(
         url,
-        { email: credentials.email, password: credentials.password },
+        {
+          email: credentials.email,
+          password: credentials.password,
+        },
         {
           headers: {
             "Content-Type": "application/json",
@@ -56,95 +101,200 @@ function AddAdmin() {
       );
 
       if (res.status === 201) {
-        alert("Successfully added Admin");
+        toast.success("Admin Added Successfully", {
+          description: `${credentials.email} has been added as an admin`,
+        });
+
+        // Reset form
+        setCredentials({
+          email: "",
+          password: "",
+          conPassword: "",
+        });
+
+        // Navigate back to admins list after a short delay
+        setTimeout(() => {
+          router.push("/viewAdmins");
+        }, 1500);
       }
     } catch (e: any) {
-      setCredError({
-        email: e.response.data.msg,
-        password: " ",
-        conPassword: " ",
-      });
+      console.error("Failed to add admin:", e);
+      const errorMsg =
+        e.response?.data?.message || e.response?.data?.msg || "Failed to add admin";
+      toast.error("Failed to Add Admin", { description: errorMsg });
+      setErrors((prev) => ({
+        ...prev,
+        email: errorMsg,
+      }));
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false);
-  }
+  };
 
   return (
     <>
       <Head>
-        <title>Add Admin</title>
-        <meta name="description" content="Generated by create next app" />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <link rel="icon" href="/favicon.ico" />
+        <title>Add Admin - GolBot Admin</title>
       </Head>
-      <main className="w-screen h-screen flex">
-        {/* sideBar */}
-        <div className="w-72 h-screen fixed">
-          <Sidebar />
-        </div>
-        {/* content */}
-        <div className="w-[20%]" />
-        <div className="w-[80%] h-full p-10 grid place-items-center">
-          <div className="w-96 flex flex-col p-5 border-t-4 border-t-cblue border border-gray-400 rounded-lg">
-            <div className="text-3xl text-center">Add Admin</div>
-            <div className="h-8" />
-            <input
-              className={`p-2 px-5 border border-cbluel rounded-lg focus:border-cblue focus:border-2 ${
-                credError.email !== "" && "border-red-500 focus:border-red-500"
-              }`}
-              type="text"
-              value={credentials.email}
-              onChange={(v) =>
-                setCredentials((f) => ({ ...f, email: v.target.value }))
-              }
-              placeholder="Email Address"
-            />
-            <div className="h-8 text-red-500 text-sm ml-2 mt-1">
-              {credError.email}
-            </div>
 
-            <input
-              className={`p-2 px-5 border border-cbluel rounded-lg focus:border-cblue focus:border-2 ${
-                credError.password !== "" &&
-                "border-red-500 focus:border-red-500"
-              }`}
-              type="password"
-              value={credentials.password}
-              onChange={(v) =>
-                setCredentials((f) => ({ ...f, password: v.target.value }))
-              }
-              placeholder="Password"
-            />
-            <div className="h-8 text-red-500 text-sm ml-2 mt-1">
-              {credError.password}
-            </div>
-
-            <input
-              className={`p-2 px-5 border border-cbluel rounded-lg focus:border-cblue focus:border-2 ${
-                credError.conPassword !== "" &&
-                "border-red-500 focus:border-red-500"
-              }`}
-              type="password"
-              value={credentials.conPassword}
-              onChange={(v) =>
-                setCredentials((f) => ({ ...f, conPassword: v.target.value }))
-              }
-              placeholder="Confirm Password"
-            />
-            <div className="h-8 text-red-500 text-sm ml-2 mt-1">
-              {credError.conPassword}
-            </div>
-
-            <button
-              className="p-2 text-white border border-cblue bg-cblue rounded-md hover:border hover:border-cblue hover:text-cblue hover:bg-white"
-              disabled={isLoading}
-              onClick={addAdminService}>
-              {isLoading ? <PulseLoader /> : "ADD ADMIN"}
-            </button>
+      <AppLayout title="Add Admin" description="Create a new administrator account">
+        <div className="space-y-6">
+          {/* Back Button */}
+          <div>
+            <Button
+              variant="outline"
+              onClick={() => router.push("/viewAdmins")}
+            >
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Back to Admins
+            </Button>
           </div>
+
+          {/* Form Card */}
+          <Card className="max-w-2xl mx-auto">
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-primary/10">
+                  <UserPlus className="h-6 w-6 text-primary" />
+                </div>
+                <div>
+                  <CardTitle>Add New Administrator</CardTitle>
+                  <CardDescription>
+                    Create a new admin account with email and password
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Email Field */}
+              <div className="space-y-2">
+                <Label htmlFor="email">
+                  Email Address *
+                </Label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="admin@example.com"
+                    value={credentials.email}
+                    onChange={(e) =>
+                      setCredentials((prev) => ({ ...prev, email: e.target.value }))
+                    }
+                    onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
+                    disabled={isLoading}
+                    className={`pl-9 ${errors.email ? "border-red-500" : ""}`}
+                  />
+                </div>
+                {errors.email && (
+                  <p className="text-sm text-red-500">{errors.email}</p>
+                )}
+              </div>
+
+              {/* Password Field */}
+              <div className="space-y-2">
+                <Label htmlFor="password">
+                  Password *
+                </Label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    id="password"
+                    type="password"
+                    placeholder="Minimum 6 characters"
+                    value={credentials.password}
+                    onChange={(e) =>
+                      setCredentials((prev) => ({ ...prev, password: e.target.value }))
+                    }
+                    onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
+                    disabled={isLoading}
+                    className={`pl-9 ${errors.password ? "border-red-500" : ""}`}
+                  />
+                </div>
+                {errors.password && (
+                  <p className="text-sm text-red-500">{errors.password}</p>
+                )}
+              </div>
+
+              {/* Confirm Password Field */}
+              <div className="space-y-2">
+                <Label htmlFor="conPassword">
+                  Confirm Password *
+                </Label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    id="conPassword"
+                    type="password"
+                    placeholder="Re-enter password"
+                    value={credentials.conPassword}
+                    onChange={(e) =>
+                      setCredentials((prev) => ({
+                        ...prev,
+                        conPassword: e.target.value,
+                      }))
+                    }
+                    onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
+                    disabled={isLoading}
+                    className={`pl-9 ${errors.conPassword ? "border-red-500" : ""}`}
+                  />
+                </div>
+                {errors.conPassword && (
+                  <p className="text-sm text-red-500">{errors.conPassword}</p>
+                )}
+              </div>
+
+              {/* Password Requirements */}
+              <div className="rounded-lg bg-muted p-4">
+                <p className="text-sm font-medium mb-2">Password Requirements:</p>
+                <ul className="text-sm text-muted-foreground space-y-1">
+                  <li className="flex items-center gap-2">
+                    <CheckCircle2
+                      className={`h-4 w-4 ${
+                        credentials.password.length >= 6
+                          ? "text-green-500"
+                          : "text-muted-foreground"
+                      }`}
+                    />
+                    At least 6 characters long
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <CheckCircle2
+                      className={`h-4 w-4 ${
+                        credentials.password === credentials.conPassword &&
+                        credentials.password.length > 0
+                          ? "text-green-500"
+                          : "text-muted-foreground"
+                      }`}
+                    />
+                    Passwords match
+                  </li>
+                </ul>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-3 pt-4">
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => router.push("/viewAdmins")}
+                  disabled={isLoading}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  className="flex-1"
+                  onClick={handleSubmit}
+                  disabled={isLoading}
+                >
+                  <UserPlus className="mr-2 h-4 w-4" />
+                  {isLoading ? "Adding Admin..." : "Add Admin"}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
         </div>
-      </main>
+      </AppLayout>
     </>
   );
 }
-
-export default AddAdmin;

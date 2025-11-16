@@ -9,6 +9,9 @@ import {
   loginAdmin,
   registerMachine,
   getAllMachines,
+  updateMachineStatus,
+  softDeleteMachine,
+  restoreMachine,
   updateOrderStatus,
   getOrderStatusHistory,
   updatePaymentStatus,
@@ -39,6 +42,9 @@ router.get("/admins", admin, getAllAdmins);
 // Machine management
 router.post("/machines", admin, registerMachine);
 router.get("/machines", admin, getAllMachines);
+router.put("/machines/:machineId/status", admin, updateMachineStatus);
+router.delete("/machines/:machineId", admin, softDeleteMachine);
+router.put("/machines/:machineId/restore", admin, restoreMachine);
 
 // Machine QR Token management
 router.post("/machines/:machineId/qr-token", admin, generateMachineQRToken);

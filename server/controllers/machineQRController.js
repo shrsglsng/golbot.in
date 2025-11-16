@@ -44,6 +44,7 @@ export const generateMachineQRToken = async (req, res) => {
     machine.qrTokens = machine.qrTokens || [];
     machine.qrTokens.push({
       tokenId: qrData.tokenId,
+      token: qrData.token, // Store the actual token value
       createdAt: new Date(),
       createdBy: req.user?.uid || 'admin',
       label: label || `QR-${machine.qrTokens.length + 1}`
@@ -102,6 +103,7 @@ export const getMachineQRTokens = async (req, res) => {
     // Build full token list with status
     const allTokens = (machine.qrTokens || []).map(token => ({
       tokenId: token.tokenId,
+      token: token.token, // Include the actual token value
       label: token.label,
       createdAt: token.createdAt,
       createdBy: token.createdBy,

@@ -3,7 +3,20 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 
 const machineSchema = new mongoose.Schema({
-  mid: { type: String, required: true, unique: true },
+  mid: {
+    type: String,
+    required: true,
+    unique: true,
+    uppercase: true, // Automatically convert to uppercase
+    trim: true,
+    validate: {
+      validator: function(v) {
+        // Validate format: 3-20 characters, alphanumeric
+        return /^[A-Z0-9]{3,20}$/.test(v);
+      },
+      message: props => `${props.value} is not a valid machine ID! Format should be 3-20 alphanumeric characters (e.g., M01, ABC1, XY99)`
+    }
+  },
   mstatus: {
     type: String,
     enum: ["CONNECTED", "DISCONNECTED", "PREPARING", "READY_FOR_PICKUP"],
@@ -15,9 +28,16 @@ const machineSchema = new mongoose.Schema({
   ipAddress: String,
   lastPingedAt: Date,
 
+  // Soft delete tracking
+  deletedAt: Date,
+  deletedBy: String,
+  restoredAt: Date,
+  restoredBy: String,
+
   // QR Token management for machine routing
   qrTokens: [{
     tokenId: { type: String, required: true },
+    token: { type: String, required: true }, // Store the actual token value
     createdAt: { type: Date, default: Date.now },
     createdBy: { type: String, default: 'system' },
     label: String,
@@ -27,7 +47,8 @@ const machineSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 machineSchema.pre("save", async function () {
-  if (this.password) {
+  // Only hash password if it was modified (not on every save)
+  if (this.isModified('password') && this.password) {
     const salt = await bcrypt.genSalt(10);
     this.password = await bcrypt.hash(this.password, salt);
   }

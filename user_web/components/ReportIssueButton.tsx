@@ -88,7 +88,7 @@ export function ReportIssueButton({
             <Mail className="h-5 w-5 text-amber-600 flex-shrink-0" />
             <div className="flex-1">
               <p className="font-semibold text-amber-900 mb-2">
-                Email app didn't open?
+                Email app didn&apos;t open?
               </p>
               <ul className="text-amber-800 space-y-1 text-xs">
                 <li>• Tap the button again to retry</li>

@@ -31,7 +31,7 @@ function RefundPolicy() {
                 Refund Policy
               </h1>
               <p className="text-lg md:text-xl text-white/90 max-w-3xl mx-auto">
-                We're here to help resolve any issues promptly
+                We&apos;re here to help resolve any issues promptly
               </p>
             </div>
           </Container>
@@ -66,7 +66,7 @@ function RefundPolicy() {
                       </div>
                       <h3 className="text-xl font-bold mb-2">Visit Receipt Page</h3>
                       <p className="text-muted-foreground text-sm">
-                        After completing your order, you'll be directed to a receipt page. Look for the "Report an Issue" button at the bottom.
+                        After completing your order, you&apos;ll be directed to a receipt page. Look for the &quot;Report an Issue&quot; button at the bottom.
                       </p>
                     </div>
                   </div>
@@ -116,7 +116,7 @@ function RefundPolicy() {
                       </div>
                       <h3 className="text-xl font-bold mb-2">Submit Report</h3>
                       <p className="text-muted-foreground text-sm">
-                        After providing both photo and description (required), click "Submit Report" to send your report to our team.
+                        After providing both photo and description (required), click &quot;Submit Report&quot; to send your report to our team.
                       </p>
                     </div>
                   </div>
@@ -162,7 +162,7 @@ function RefundPolicy() {
                   <AlertCircle className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
                   <p className="text-sm text-muted-foreground">
                     The time required for the refund to reflect in your account may vary depending on your payment
-                    provider's policies (typically 5-7 business days).
+                    provider&apos;s policies (typically 5-7 business days).
                   </p>
                 </div>
               </CardContent>
@@ -174,7 +174,7 @@ function RefundPolicy() {
             <CardContent className="p-8 md:p-12 text-center">
               <h2 className="text-2xl font-bold mb-4">Need Help?</h2>
               <p className="text-muted-foreground mb-6">
-                If you have any questions about our refund policy or need assistance, we're here to help.
+                If you have any questions about our refund policy or need assistance, we&apos;re here to help.
               </p>
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
                 <a

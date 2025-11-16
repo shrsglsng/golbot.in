@@ -173,7 +173,7 @@ export function AppHeader({ title, description, showSearch = true }: AppHeaderPr
                   <Bell className="h-8 w-8 mx-auto mb-2 text-muted-foreground opacity-20" />
                   <p className="text-sm text-muted-foreground">No new notifications</p>
                   <p className="text-xs text-muted-foreground mt-1">
-                    You're all caught up!
+                    You&apos;re all caught up!
                   </p>
                 </div>
               ) : (

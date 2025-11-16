@@ -152,7 +152,7 @@ function Shipping() {
                 <h3 className="text-xl font-bold mb-4">Returns & Refunds</h3>
                 <p className="text-muted-foreground mb-4">
                   Any returns or refunds are processed as per our Refund Policy. If you experience any issues with your order,
-                  please use the "Report an Issue" button on the receipt page immediately after your order.
+                  please use the &quot;Report an Issue&quot; button on the receipt page immediately after your order.
                 </p>
                 <Link href="/refund-policy">
                   <Button variant="outline" className="w-full">
@@ -166,7 +166,7 @@ function Shipping() {
               <CardContent className="p-8">
                 <h3 className="text-xl font-bold mb-4">Questions?</h3>
                 <p className="text-muted-foreground mb-6">
-                  If you have any questions about our collection process, we're here to help.
+                  If you have any questions about our collection process, we&apos;re here to help.
                 </p>
                 <div className="space-y-3">
                   <a

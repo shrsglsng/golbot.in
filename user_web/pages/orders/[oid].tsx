@@ -341,7 +341,7 @@ export default function OrderDetailPage() {
                   <CardContent className="p-12 text-center">
                     <AlertTriangle className="h-16 w-16 text-destructive mx-auto mb-4" />
                     <h2 className="text-2xl font-bold mb-2">Order Not Found</h2>
-                    <p className="text-muted-foreground mb-6">The order you're looking for doesn't exist</p>
+                    <p className="text-muted-foreground mb-6">The order you&apos;re looking for doesn&apos;t exist</p>
                     <Button onClick={() => router.push("/myOrders")}>
                       Back to Orders
                     </Button>

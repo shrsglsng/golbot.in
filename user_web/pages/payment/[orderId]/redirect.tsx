@@ -21,11 +21,11 @@ export default function PaymentRedirect() {
         return;
       }
 
+      // Get the pending machine ID from session storage
+      const machineId = sessionStorage.getItem('pendingMachineId');
+
       try {
         console.log('🔍 Verifying PhonePe payment for order:', orderId);
-
-        // Get the pending machine ID from session storage
-        const machineId = sessionStorage.getItem('pendingMachineId');
         
         // Verify payment with backend
         const verifyRes = await fetch(

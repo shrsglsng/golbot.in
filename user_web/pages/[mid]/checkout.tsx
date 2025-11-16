@@ -71,7 +71,7 @@ function CheckoutPage() {
       const itemsToOrder = items
         .filter((item) => item.quantity > 0)
         .map((item) => ({
-          id: item.id || item._id,
+          id: item.id,
           quantity: item.quantity
         }));
 
@@ -317,11 +317,7 @@ function CheckoutPage() {
 
       // Show specific error message for machine issues
       if (err.message?.includes("offline") || err.message?.includes("inactive")) {
-        toast({
-          title: "Machine Unavailable",
-          description: err.message,
-          variant: "destructive",
-        });
+        toast.error("Machine Unavailable", err.message);
         // Optionally redirect back to machine selection after a delay
         setTimeout(() => {
           router.push("/order");

@@ -71,6 +71,7 @@ export async function getAllReports(params: {
   status?: string;
   orderId?: string;
   machineId?: string;
+  seen?: string;
   page?: number;
 }): Promise<ReportsListResponse> {
   const baseUrl = process.env.NEXT_PUBLIC_SERVER_URL;

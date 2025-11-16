@@ -25,7 +25,7 @@ import { useToast } from "@/hooks/use-toast";
 export default function OrderDetailPage() {
   const router = useRouter();
   const { oid } = router.query;
-  const { toast } = useToast();
+  const toast = useToast();
   const [isLoading, setIsLoading] = useState(true);
   const [order, setOrder] = useState<any>(null);
   const [pollingInterval, setPollingInterval] = useState<NodeJS.Timeout | null>(null);
@@ -44,11 +44,7 @@ export default function OrderDetailPage() {
 
       if (!response.ok) {
         if (response.status === 401) {
-          toast({
-            title: "Authentication Required",
-            description: "Please login to view order details",
-            variant: "destructive",
-          });
+          toast.error("Authentication Required", "Please login to view order details");
           router.replace("/auth/login");
           return null;
         }
@@ -92,20 +88,12 @@ export default function OrderDetailPage() {
           setOrder(freshOrderData);
         } else if (!cachedOrderData) {
           // No cached data and failed to fetch
-          toast({
-            title: "Order Not Found",
-            description: "Please access this order from your order history",
-            variant: "destructive",
-          });
+          toast.error("Order Not Found", "Please access this order from your order history");
           router.replace("/myOrders");
         }
       } catch (error) {
         console.error("Error loading order:", error);
-        toast({
-          title: "Error",
-          description: "Failed to load order details",
-          variant: "destructive",
-        });
+        toast.error("Error", "Failed to load order details");
       } finally {
         setIsLoading(false);
       }

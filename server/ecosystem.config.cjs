@@ -21,6 +21,25 @@ module.exports = {
       merge_logs: true
     },
     {
+      name: 'golbot-api-stage',
+      script: 'server.js',
+      instances: 1,
+      exec_mode: 'fork',
+      env: {
+        NODE_ENV: 'staging'
+      },
+      env_file: '.env.stage',
+      watch: false,
+      autorestart: true,
+      max_restarts: 10,
+      min_uptime: '10s',
+      max_memory_restart: '500M',
+      error_file: './logs/pm2-stage-error.log',
+      out_file: './logs/pm2-stage-out.log',
+      log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
+      merge_logs: true
+    },
+    {
       name: 'golbot-api-prod',
       script: 'server.js',
       instances: 'max',

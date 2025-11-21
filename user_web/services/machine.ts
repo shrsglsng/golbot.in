@@ -162,9 +162,11 @@ export async function getMachineById(
 }
 
 /**
- * Validate machine code (checks format and existence)
+ * Validate machine code format (3-20 characters, alphanumeric)
+ * Backend allows any alphanumeric format between 3-20 characters
  */
 export function isValidMachineCodeFormat(code: string): boolean {
-  // Machine codes should be like M01, M02, etc.
-  return /^M\d{2,3}$/i.test(code.trim());
+  const trimmed = code.trim();
+  // Must be 3-20 characters, alphanumeric
+  return trimmed.length >= 3 && trimmed.length <= 20 && /^[A-Z0-9]+$/i.test(trimmed);
 }

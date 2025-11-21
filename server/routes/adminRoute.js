@@ -1,8 +1,10 @@
 import express from "express";
 import admin, { optionalAuth } from "../middlewares/admin.js";
 import {
+  getAllItemsAdmin,
   addItem,
   updateItem,
+  upsertItem,
   getReportIssues,
   getAllAdmins,
   registerAdmin,
@@ -28,8 +30,10 @@ import {
 const router = express.Router();
 
 // Item management
+router.get("/items", admin, getAllItemsAdmin);
 router.post("/items", admin, addItem);
 router.put("/items/:itemId", admin, updateItem);
+router.post("/updateItem", admin, upsertItem);
 
 // Issue Reports
 router.get("/issues", admin, getReportIssues);

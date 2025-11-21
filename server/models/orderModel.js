@@ -43,10 +43,15 @@ const orderSchema = new mongoose.Schema({
   actualCompletionTime: { type: Date }
 }, { timestamps: true });
 
-// Pre-save middleware to track status changes
-orderSchema.pre('save', function(next) {
+// Pre-save middleware to track status changes and assign order number
+orderSchema.pre('save', async function(next) {
   if (this.isNew) {
-    // For new orders, add initial status to history
+    // For new orders, assign order counter immediately
+    if (this.orderCounter === 0 || !this.orderCounter) {
+      this.orderCounter = await Counter.getNextSequence('orderSerial');
+    }
+
+    // Add initial status to history
     this.statusHistory = [{
       status: this.orderStatus,
       changedAt: new Date(),
@@ -70,14 +75,9 @@ orderSchema.methods.updateStatus = async function(newStatus, changedBy = 'system
   this._statusChangeReason = reason;
   this._statusChangedBy = changedBy;
   this._statusChangeMetadata = metadata;
-  
+
   this.orderStatus = newStatus;
-  
-  // Assign global serial number when payment is completed (only once)
-  if (newStatus === 'PAID' && this.orderCounter === 0) {
-    this.orderCounter = await Counter.getNextSequence('orderSerial');
-  }
-  
+
   // Add specific timestamps for important status changes
   if (newStatus === 'PAID') {
     this.paidAt = new Date();
@@ -91,7 +91,7 @@ orderSchema.methods.updateStatus = async function(newStatus, changedBy = 'system
     this.actualCompletionTime = new Date();
     this.orderCompleted = true;
   }
-  
+
   return this.save();
 };
 

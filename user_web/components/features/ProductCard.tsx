@@ -126,11 +126,16 @@ export function ProductCard({ item, index, onQuantityChange, onClick }: ProductC
           <div className="absolute inset-0 bg-gradient-to-t from-black/10 to-transparent z-10" />
           {item.imgUrl ? (
             <Image
-              src={"/paniPuri.png"}
+              src={item.imgUrl}
               alt={item.name}
               fill
               className="object-cover"
               sizes="128px"
+              onError={(e) => {
+                // Fallback to emoji if image fails to load
+                const target = e.target as HTMLImageElement;
+                target.style.display = 'none';
+              }}
             />
           ) : (
             <div className="h-full w-full flex items-center justify-center bg-muted text-5xl">

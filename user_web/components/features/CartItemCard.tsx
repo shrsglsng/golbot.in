@@ -26,11 +26,16 @@ export function CartItemCard({ item, index, onQuantityChange, onRemove }: CartIt
         <div className="relative w-24 h-24 flex-shrink-0 rounded-lg overflow-hidden bg-muted ring-1 ring-border">
           {item.imgUrl ? (
             <Image
-              src="/paniPuri.png"
+              src={item.imgUrl}
               alt={item.name}
               fill
               className="object-cover"
               sizes="96px"
+              onError={(e) => {
+                // Fallback to emoji if image fails to load
+                const target = e.target as HTMLImageElement;
+                target.style.display = 'none';
+              }}
             />
           ) : (
             <div className="h-full w-full flex items-center justify-center text-4xl">

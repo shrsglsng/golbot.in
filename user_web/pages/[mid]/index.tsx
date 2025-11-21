@@ -365,11 +365,16 @@ export default function Home({ allItems, machineData }: Readonly<{ allItems: Ext
               <div className="relative h-64 w-full bg-gradient-to-br from-orange-100 to-red-100 flex-shrink-0">
                 {selectedItem.imgUrl ? (
                   <Image
-                    src={"/paniPuri.png"}
+                    src={selectedItem.imgUrl}
                     alt={selectedItem.name}
                     fill
                     className="object-cover"
                     sizes="100vw"
+                    onError={(e) => {
+                      // Fallback to emoji if image fails to load
+                      const target = e.target as HTMLImageElement;
+                      target.style.display = 'none';
+                    }}
                   />
                 ) : (
                   <div className="h-full w-full flex items-center justify-center text-9xl">
@@ -549,11 +554,16 @@ export default function Home({ allItems, machineData }: Readonly<{ allItems: Ext
                 <div className="relative h-56 w-full bg-gradient-to-br from-orange-100 to-red-100 flex-shrink-0">
                   {selectedItem.imgUrl ? (
                     <Image
-                      src={"/paniPuri.png"}
+                      src={selectedItem.imgUrl}
                       alt={selectedItem.name}
                       fill
                       className="object-cover"
                       sizes="(max-width: 768px) 100vw, 700px"
+                      onError={(e) => {
+                        // Fallback to emoji if image fails to load
+                        const target = e.target as HTMLImageElement;
+                        target.style.display = 'none';
+                      }}
                     />
                   ) : (
                     <div className="h-full w-full flex items-center justify-center text-8xl">

@@ -13,20 +13,71 @@ import ApiResponse from "../utils/response.js";
 import { getOrderTimeline, getPaymentHistory } from "../utils/migrationHelpers.js";
 
 // ---------------------------------
+// Get all items (for admin - includes unavailable items)
+export const getAllItemsAdmin = async (req, res) => {
+  try {
+    logger.info('Admin fetching all menu items', {
+      adminId: req.user?.uid
+    });
+
+    const items = await DatabaseUtil.find(Item,
+      {},
+      { select: "-__v", sort: { createdAt: -1 } }
+    );
+
+    logger.debug('All items retrieved for admin', {
+      count: items.length,
+      adminId: req.user?.uid
+    });
+
+    // Transform _id to id for frontend compatibility
+    const transformedItems = items.map(item => ({
+      id: item._id,
+      name: item.name,
+      desc: item.desc,
+      imgUrl: item.imgUrl,
+      price: item.price,
+      gst: item.gst,
+      quantity: item.qtyLeft || 0,
+      isAvailable: item.isAvailable ?? true
+    }));
+
+    return ApiResponse.success(res, {
+      items: transformedItems
+    }, "Items retrieved successfully");
+
+  } catch (error) {
+    logger.error('Failed to fetch items for admin', {
+      error: error.message,
+      adminId: req.user?.uid
+    });
+    throw error;
+  }
+};
+
+// ---------------------------------
 // Add new item
 export const addItem = async (req, res) => {
   try {
     const { name, desc, imgUrl, price, gst, qtyLeft, isAvailable } = req.body;
-    
-    logger.info('Add item request', { 
+
+    logger.info('Add item request', {
       adminId: req.user?.uid,
       itemName: name,
-      price 
+      price
     });
 
-    // Validate required fields
-    Validator.validateRequired(['name', 'price', 'gst'], { name, price, gst });
-    
+    // Validate required fields (check for undefined/null, not falsy values)
+    if (name === undefined || name === null || name === '') {
+      throw new BadRequestError('Item name is required');
+    }
+    if (price === undefined || price === null) {
+      throw new BadRequestError('Price is required');
+    }
+    if (gst === undefined || gst === null) {
+      throw new BadRequestError('GST is required');
+    }
+
     // Validate individual fields
     Validator.validateString(name, 'Item name', { minLength: 2, maxLength: 100 });
     Validator.validateNumber(price, 'Price', { min: 0, max: 10000 });
@@ -101,10 +152,10 @@ export const updateItem = async (req, res) => {
     const { itemId } = req.params;
     const { name, desc, imgUrl, price, gst, isAvailable, qtyLeft } = req.body;
 
-    logger.info('Update item request', { 
+    logger.info('Update item request', {
       itemId,
       adminId: req.user?.uid,
-      updates: Object.keys(req.body) 
+      updates: Object.keys(req.body)
     });
 
     // Validate item ID
@@ -112,36 +163,36 @@ export const updateItem = async (req, res) => {
 
     // Build update object with validation
     const updateData = {};
-    
+
     if (name !== undefined) {
       Validator.validateString(name, 'Item name', { minLength: 2, maxLength: 100 });
       updateData.name = Validator.sanitizeInput(name);
     }
-    
+
     if (desc !== undefined) {
       Validator.validateString(desc, 'Description', { maxLength: 500, required: false });
       updateData.desc = Validator.sanitizeInput(desc);
     }
-    
+
     if (imgUrl !== undefined) {
       updateData.imgUrl = imgUrl;
     }
-    
+
     if (price !== undefined) {
       Validator.validateNumber(price, 'Price', { min: 0, max: 10000 });
       updateData.price = parseFloat(price);
     }
-    
+
     if (gst !== undefined) {
       Validator.validateNumber(gst, 'GST', { min: 0, max: 1000 });
       updateData.gst = parseFloat(gst);
     }
-    
+
     if (qtyLeft !== undefined) {
       Validator.validateNumber(qtyLeft, 'Quantity', { min: 0, max: 1000, integer: true });
       updateData.qtyLeft = parseInt(qtyLeft);
     }
-    
+
     if (isAvailable !== undefined) {
       updateData.isAvailable = Boolean(isAvailable);
     }
@@ -151,14 +202,14 @@ export const updateItem = async (req, res) => {
     updateData.updatedAt = new Date();
 
     // Check if item exists and update
-    const updatedItem = await DatabaseUtil.updateById(Item, itemId, updateData, { 
-      throwIfNotFound: true 
+    const updatedItem = await DatabaseUtil.updateById(Item, itemId, updateData, {
+      throwIfNotFound: true
     });
 
-    logger.info('Item updated successfully', { 
+    logger.info('Item updated successfully', {
       itemId,
       itemName: updatedItem.name,
-      adminId: req.user?.uid 
+      adminId: req.user?.uid
     });
 
     return ApiResponse.success(res, {
@@ -174,10 +225,179 @@ export const updateItem = async (req, res) => {
     }, "Item updated successfully");
 
   } catch (error) {
-    logger.error('Update item failed', { 
+    logger.error('Update item failed', {
       error: error.message,
       itemId: req.params?.itemId,
-      adminId: req.user?.uid 
+      adminId: req.user?.uid
+    });
+    throw error;
+  }
+};
+
+// Upsert item (add or update based on presence of id)
+export const upsertItem = async (req, res) => {
+  try {
+    const { id, name, desc, imgUrl, price, gst, isAvailable } = req.body;
+
+    logger.info('Upsert item request', {
+      itemId: id || 'new',
+      adminId: req.user?.uid,
+      itemName: name
+    });
+
+    // If id is provided, update existing item
+    if (id) {
+      // Validate item ID
+      Validator.validateObjectId(id, 'Item ID');
+
+      // Build update object with validation
+      const updateData = {};
+
+      if (name !== undefined) {
+        Validator.validateString(name, 'Item name', { minLength: 2, maxLength: 100 });
+
+        // Check if name is being changed and if new name already exists
+        const existingItem = await DatabaseUtil.findOne(Item, {
+          _id: { $ne: id },
+          name: { $regex: new RegExp(`^${name}$`, 'i') }
+        });
+
+        if (existingItem) {
+          logger.warn('Attempt to update item with duplicate name', {
+            itemId: id,
+            itemName: name,
+            existingItemId: existingItem._id
+          });
+          throw new ConflictError("Item with this name already exists");
+        }
+
+        updateData.name = Validator.sanitizeInput(name);
+      }
+
+      if (desc !== undefined) {
+        Validator.validateString(desc, 'Description', { maxLength: 500, required: false });
+        updateData.desc = Validator.sanitizeInput(desc);
+      }
+
+      if (imgUrl !== undefined) {
+        updateData.imgUrl = imgUrl;
+      }
+
+      if (price !== undefined) {
+        Validator.validateNumber(price, 'Price', { min: 0, max: 10000 });
+        updateData.price = parseFloat(price);
+      }
+
+      if (gst !== undefined) {
+        Validator.validateNumber(gst, 'GST', { min: 0, max: 1000 });
+        updateData.gst = parseFloat(gst);
+      }
+
+      if (isAvailable !== undefined) {
+        updateData.isAvailable = Boolean(isAvailable);
+      }
+
+      // Add audit fields
+      updateData.updatedBy = req.user?.uid;
+      updateData.updatedAt = new Date();
+
+      // Check if item exists and update
+      const updatedItem = await DatabaseUtil.updateById(Item, id, updateData, {
+        throwIfNotFound: true
+      });
+
+      logger.info('Item updated successfully', {
+        itemId: id,
+        itemName: updatedItem.name,
+        adminId: req.user?.uid
+      });
+
+      return ApiResponse.success(res, {
+        item: {
+          id: updatedItem._id,
+          name: updatedItem.name,
+          desc: updatedItem.desc,
+          imgUrl: updatedItem.imgUrl,
+          price: updatedItem.price,
+          gst: updatedItem.gst,
+          isAvailable: updatedItem.isAvailable
+        }
+      }, "Item updated successfully");
+
+    } else {
+      // Add new item
+      // Validate required fields (check for undefined/null, not falsy values)
+      if (name === undefined || name === null || name === '') {
+        throw new BadRequestError('Item name is required');
+      }
+      if (price === undefined || price === null) {
+        throw new BadRequestError('Price is required');
+      }
+      if (gst === undefined || gst === null) {
+        throw new BadRequestError('GST is required');
+      }
+
+      // Validate individual fields
+      Validator.validateString(name, 'Item name', { minLength: 2, maxLength: 100 });
+      Validator.validateNumber(price, 'Price', { min: 0, max: 10000 });
+      Validator.validateNumber(gst, 'GST', { min: 0, max: 1000 });
+
+      if (desc) {
+        Validator.validateString(desc, 'Description', { maxLength: 500 });
+      }
+
+      // Check for duplicate item name
+      const existingItem = await DatabaseUtil.findOne(Item, {
+        name: { $regex: new RegExp(`^${name}$`, 'i') }
+      });
+
+      if (existingItem) {
+        logger.warn('Attempt to create duplicate item', {
+          itemName: name,
+          existingItemId: existingItem._id
+        });
+        throw new ConflictError("Item with this name already exists");
+      }
+
+      const itemData = {
+        name: Validator.sanitizeInput(name),
+        desc: desc ? Validator.sanitizeInput(desc) : '',
+        imgUrl: imgUrl || '',
+        price: parseFloat(price),
+        gst: parseFloat(gst),
+        qtyLeft: 0,
+        isAvailable: isAvailable !== undefined ? Boolean(isAvailable) : true,
+        createdBy: req.user?.uid,
+        createdAt: new Date()
+      };
+
+      const item = await DatabaseUtil.create(Item, itemData);
+
+      logger.info('Item created successfully', {
+        itemId: item._id,
+        itemName: item.name,
+        adminId: req.user?.uid
+      });
+
+      return ApiResponse.created(res, {
+        item: {
+          id: item._id,
+          name: item.name,
+          desc: item.desc,
+          imgUrl: item.imgUrl,
+          price: item.price,
+          gst: item.gst,
+          isAvailable: item.isAvailable
+        }
+      }, "Item created successfully");
+    }
+
+  } catch (error) {
+    logger.error('Upsert item failed', {
+      error: error.message,
+      itemId: req.body?.id || 'new',
+      adminId: req.user?.uid,
+      itemName: req.body?.name
     });
     throw error;
   }

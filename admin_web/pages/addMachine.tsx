@@ -25,7 +25,7 @@ export default function AddMachine() {
     const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
     const firstChars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ123456789"; // Exclude 0 for first char
 
-    // Generate 4-8 character MID
+    // Generate 4-8 character MID (within the 3-20 character limit)
     const length = Math.floor(Math.random() * 5) + 4; // 4-8 chars
     let newMid = firstChars[Math.floor(Math.random() * firstChars.length)];
     for (let i = 1; i < length; i++) {
@@ -130,10 +130,11 @@ export default function AddMachine() {
                 <div className="flex gap-2">
                   <Input
                     id="mid"
-                    placeholder="e.g., ABC123"
+                    placeholder="e.g., M01, ABC123"
                     value={mid}
                     onChange={(e) => setMid(e.target.value.toUpperCase())}
-                    maxLength={8}
+                    maxLength={20}
+                    minLength={3}
                     disabled={isSubmitting}
                     className="font-mono"
                   />
@@ -147,7 +148,7 @@ export default function AddMachine() {
                   </Button>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  3-8 characters (A-Z, 0-9), first character cannot be 0
+                  3-20 alphanumeric characters (A-Z, 0-9), automatically capitalized
                 </p>
               </div>
 

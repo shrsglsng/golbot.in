@@ -70,9 +70,10 @@ export default function Items() {
       const baseUrl = process.env.NEXT_PUBLIC_SERVER_URL;
       if (!baseUrl) throw new Error("Server URL not set");
 
-      const res = await axios.get(`${baseUrl}/getAllItems`, {
+      const res = await axios.get(`${baseUrl}/admin/items`, {
         headers: {
           "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("Token")}`,
         },
       });
 

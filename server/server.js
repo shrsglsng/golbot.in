@@ -210,7 +210,7 @@ const connectDB = async (retries = 5) => {
         environment: NODE_ENV,
         mongoConnected: mongoose.connection.readyState === 1,
         localUrl: `http://localhost:${PORT}`,
-        networkUrl: `http://192.168.31.158:${PORT}` // Your local network IP
+        networkUrl: `http://192.168.0.110:${PORT}` // Your local network IP
       });
       console.log(`\n🌐 Server accessible at:`);
       console.log(`   Local:   http://localhost:${PORT}`);

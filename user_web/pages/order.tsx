@@ -85,7 +85,7 @@ export default function OrderPage() {
     }
 
     if (!isValidMachineCodeFormat(code)) {
-      toast.error("Invalid Format", "Machine codes look like M01, M02, etc.");
+      toast.error("Invalid Format", "Machine code must be 3-20 alphanumeric characters (e.g., M01, M02, ABC123)");
       return;
     }
 
@@ -344,7 +344,8 @@ function ManualEntryForm({
                      hover:border-muted-foreground/30"
             disabled={validatingCode}
             autoComplete="off"
-            maxLength={5}
+            maxLength={20}
+            minLength={3}
             autoFocus
           />
           {machineCode && !validatingCode && (

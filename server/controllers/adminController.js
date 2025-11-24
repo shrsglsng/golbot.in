@@ -11,6 +11,11 @@ import { Validator } from "../utils/validation.js";
 import DatabaseUtil from "../utils/database.js";
 import ApiResponse from "../utils/response.js";
 import { getOrderTimeline, getPaymentHistory } from "../utils/migrationHelpers.js";
+import {
+  refillMachinePuris,
+  setMachinePuriQuantity,
+  getMachinePuriStatus
+} from "../utils/quantityUtils.js";
 
 // ---------------------------------
 // Get all items (for admin - includes unavailable items)
@@ -38,7 +43,7 @@ export const getAllItemsAdmin = async (req, res) => {
       imgUrl: item.imgUrl,
       price: item.price,
       gst: item.gst,
-      quantity: item.qtyLeft || 0,
+      puriPerPlate: item.puriPerPlate || 6,
       isAvailable: item.isAvailable ?? true
     }));
 
@@ -59,12 +64,13 @@ export const getAllItemsAdmin = async (req, res) => {
 // Add new item
 export const addItem = async (req, res) => {
   try {
-    const { name, desc, imgUrl, price, gst, qtyLeft, isAvailable } = req.body;
+    const { name, desc, imgUrl, price, gst, puriPerPlate, isAvailable } = req.body;
 
     logger.info('Add item request', {
       adminId: req.user?.uid,
       itemName: name,
-      price
+      price,
+      puriPerPlate
     });
 
     // Validate required fields (check for undefined/null, not falsy values)
@@ -82,13 +88,13 @@ export const addItem = async (req, res) => {
     Validator.validateString(name, 'Item name', { minLength: 2, maxLength: 100 });
     Validator.validateNumber(price, 'Price', { min: 0, max: 10000 });
     Validator.validateNumber(gst, 'GST', { min: 0, max: 1000 });
-    
+
     if (desc) {
       Validator.validateString(desc, 'Description', { maxLength: 500 });
     }
-    
-    if (qtyLeft !== undefined) {
-      Validator.validateNumber(qtyLeft, 'Quantity', { min: 0, max: 1000, integer: true });
+
+    if (puriPerPlate !== undefined) {
+      Validator.validateNumber(puriPerPlate, 'Puri per plate', { min: 0, max: 100, integer: true });
     }
 
     // Check for duplicate item name
@@ -110,7 +116,7 @@ export const addItem = async (req, res) => {
       imgUrl: imgUrl || '',
       price: parseFloat(price),
       gst: parseFloat(gst),
-      qtyLeft: parseInt(qtyLeft) || 0,
+      puriPerPlate: parseInt(puriPerPlate) || 6,
       isAvailable: isAvailable !== undefined ? Boolean(isAvailable) : true,
       createdBy: req.user?.uid,
       createdAt: new Date()
@@ -131,7 +137,7 @@ export const addItem = async (req, res) => {
         desc: item.desc,
         price: item.price,
         gst: item.gst,
-        qtyLeft: item.qtyLeft,
+        puriPerPlate: item.puriPerPlate,
         isAvailable: item.isAvailable
       }
     }, "Item created successfully");
@@ -150,7 +156,7 @@ export const addItem = async (req, res) => {
 export const updateItem = async (req, res) => {
   try {
     const { itemId } = req.params;
-    const { name, desc, imgUrl, price, gst, isAvailable, qtyLeft } = req.body;
+    const { name, desc, imgUrl, price, gst, isAvailable, puriPerPlate } = req.body;
 
     logger.info('Update item request', {
       itemId,
@@ -188,9 +194,9 @@ export const updateItem = async (req, res) => {
       updateData.gst = parseFloat(gst);
     }
 
-    if (qtyLeft !== undefined) {
-      Validator.validateNumber(qtyLeft, 'Quantity', { min: 0, max: 1000, integer: true });
-      updateData.qtyLeft = parseInt(qtyLeft);
+    if (puriPerPlate !== undefined) {
+      Validator.validateNumber(puriPerPlate, 'Puri per plate', { min: 0, max: 100, integer: true });
+      updateData.puriPerPlate = parseInt(puriPerPlate);
     }
 
     if (isAvailable !== undefined) {
@@ -219,7 +225,7 @@ export const updateItem = async (req, res) => {
         desc: updatedItem.desc,
         price: updatedItem.price,
         gst: updatedItem.gst,
-        qtyLeft: updatedItem.qtyLeft,
+        puriPerPlate: updatedItem.puriPerPlate,
         isAvailable: updatedItem.isAvailable
       }
     }, "Item updated successfully");
@@ -365,7 +371,7 @@ export const upsertItem = async (req, res) => {
         imgUrl: imgUrl || '',
         price: parseFloat(price),
         gst: parseFloat(gst),
-        qtyLeft: 0,
+        puriPerPlate: 6, // Default value
         isAvailable: isAvailable !== undefined ? Boolean(isAvailable) : true,
         createdBy: req.user?.uid,
         createdAt: new Date()
@@ -904,6 +910,8 @@ export const getAllMachines = async (req, res) => {
         mstatus: machine.mstatus,
         ipAddress: machine.ipAddress,
         isActive: machine.isActive,
+        puriQuantity: machine.puriQuantity || 0,
+        lowQuantityThreshold: machine.lowQuantityThreshold || 30,
         createdAt: machine.createdAt,
         lastLoginAt: machine.lastLoginAt
       })),
@@ -1396,10 +1404,401 @@ export const adminMarkOrderReady = async (req, res) => {
     }, "Order manually marked ready for pickup");
 
   } catch (error) {
-    logger.error('Admin mark order ready failed', { 
+    logger.error('Admin mark order ready failed', {
       error: error.message,
       orderId: req.params?.orderId,
-      adminId: req.user?.uid 
+      adminId: req.user?.uid
+    });
+    throw error;
+  }
+};
+
+// ---------------------------------
+// Puri Quantity Management
+// ---------------------------------
+
+// Refill machine puris (add to existing quantity)
+export const refillMachinePurisEndpoint = async (req, res) => {
+  try {
+    const { machineId } = req.params;
+    const { quantity } = req.body;
+
+    logger.info('Admin refilling machine puris', {
+      adminId: req.user?.uid,
+      machineId,
+      quantity
+    });
+
+    // Validate input
+    Validator.validateRequired(['quantity'], { quantity });
+    Validator.validateNumber(quantity, 'Quantity', { min: 1, max: 10000, integer: true });
+
+    const result = await refillMachinePuris(machineId, quantity, {
+      adminId: req.user?.uid,
+      adminAction: 'refill',
+      timestamp: new Date()
+    });
+
+    logger.info('Machine puris refilled successfully', {
+      adminId: req.user?.uid,
+      machineId: result.machineId,
+      previousQuantity: result.previousQuantity,
+      newQuantity: result.newQuantity,
+      added: quantity
+    });
+
+    return ApiResponse.success(res, {
+      machineId: result.machineId,
+      previousQuantity: result.previousQuantity,
+      newQuantity: result.newQuantity,
+      quantityAdded: quantity
+    }, "Machine puris refilled successfully");
+
+  } catch (error) {
+    logger.error('Refill machine puris failed', {
+      error: error.message,
+      machineId: req.params?.machineId,
+      adminId: req.user?.uid
+    });
+    throw error;
+  }
+};
+
+// Set machine puri quantity to specific value
+export const setMachinePurisEndpoint = async (req, res) => {
+  try {
+    const { machineId } = req.params;
+    const { quantity } = req.body;
+
+    logger.info('Admin setting machine puri quantity', {
+      adminId: req.user?.uid,
+      machineId,
+      quantity
+    });
+
+    // Validate input
+    Validator.validateRequired(['quantity'], { quantity });
+    Validator.validateNumber(quantity, 'Quantity', { min: 0, max: 10000, integer: true });
+
+    const result = await setMachinePuriQuantity(machineId, quantity, {
+      adminId: req.user?.uid,
+      adminAction: 'set_quantity',
+      timestamp: new Date()
+    });
+
+    logger.info('Machine puri quantity set successfully', {
+      adminId: req.user?.uid,
+      machineId: result.machineId,
+      previousQuantity: result.previousQuantity,
+      newQuantity: result.newQuantity
+    });
+
+    return ApiResponse.success(res, {
+      machineId: result.machineId,
+      previousQuantity: result.previousQuantity,
+      newQuantity: result.newQuantity
+    }, "Machine puri quantity set successfully");
+
+  } catch (error) {
+    logger.error('Set machine puri quantity failed', {
+      error: error.message,
+      machineId: req.params?.machineId,
+      adminId: req.user?.uid
+    });
+    throw error;
+  }
+};
+
+// Get machine puri status
+export const getMachinePurisEndpoint = async (req, res) => {
+  try {
+    const { machineId } = req.params;
+
+    logger.debug('Admin fetching machine puri status', {
+      adminId: req.user?.uid,
+      machineId
+    });
+
+    const status = await getMachinePuriStatus(machineId);
+
+    logger.debug('Machine puri status retrieved', {
+      adminId: req.user?.uid,
+      machineId: status.machineId,
+      currentQuantity: status.currentQuantity,
+      isLowStock: status.isLowStock
+    });
+
+    return ApiResponse.success(res, {
+      machine: status
+    }, "Machine puri status retrieved successfully");
+
+  } catch (error) {
+    logger.error('Get machine puri status failed', {
+      error: error.message,
+      machineId: req.params?.machineId,
+      adminId: req.user?.uid
+    });
+    throw error;
+  }
+};
+
+// Bulk refill multiple machines
+export const bulkRefillMachines = async (req, res) => {
+  try {
+    const { machines } = req.body; // Array of { machineId, quantity }
+
+    logger.info('Admin bulk refilling machines', {
+      adminId: req.user?.uid,
+      machineCount: machines?.length
+    });
+
+    // Validate input
+    Validator.validateRequired(['machines'], { machines });
+
+    if (!Array.isArray(machines) || machines.length === 0) {
+      throw new BadRequestError('Machines must be a non-empty array');
+    }
+
+    if (machines.length > 50) {
+      throw new BadRequestError('Cannot refill more than 50 machines at once');
+    }
+
+    const results = [];
+    const errors = [];
+
+    for (const machine of machines) {
+      try {
+        const { machineId, quantity } = machine;
+
+        Validator.validateRequired(['machineId', 'quantity'], machine);
+        Validator.validateNumber(quantity, 'Quantity', { min: 1, max: 10000, integer: true });
+
+        const result = await refillMachinePuris(machineId, quantity, {
+          adminId: req.user?.uid,
+          adminAction: 'bulk_refill',
+          timestamp: new Date()
+        });
+
+        results.push({
+          machineId: result.machineId,
+          success: true,
+          previousQuantity: result.previousQuantity,
+          newQuantity: result.newQuantity,
+          quantityAdded: quantity
+        });
+
+      } catch (error) {
+        logger.error('Bulk refill failed for machine', {
+          machineId: machine.machineId,
+          error: error.message
+        });
+
+        errors.push({
+          machineId: machine.machineId,
+          success: false,
+          error: error.message
+        });
+      }
+    }
+
+    logger.info('Bulk refill completed', {
+      adminId: req.user?.uid,
+      totalMachines: machines.length,
+      successful: results.length,
+      failed: errors.length
+    });
+
+    return ApiResponse.success(res, {
+      totalMachines: machines.length,
+      successful: results.length,
+      failed: errors.length,
+      results,
+      errors
+    }, `Bulk refill completed: ${results.length} successful, ${errors.length} failed`);
+
+  } catch (error) {
+    logger.error('Bulk refill machines failed', {
+      error: error.message,
+      adminId: req.user?.uid
+    });
+    throw error;
+  }
+};
+
+// Update machine low quantity threshold
+export const updateMachineLowQuantityThreshold = async (req, res) => {
+  try {
+    const { machineId } = req.params;
+    const { threshold } = req.body;
+
+    logger.info('Admin updating machine low quantity threshold', {
+      adminId: req.user?.uid,
+      machineId,
+      threshold
+    });
+
+    // Validate input
+    Validator.validateRequired(['threshold'], { threshold });
+    Validator.validateNumber(threshold, 'Threshold', { min: 0, max: 1000, integer: true });
+
+    // Find machine by ObjectId or mid
+    let machine;
+    if (machineId.length === 24) {
+      machine = await DatabaseUtil.findById(Machine, machineId);
+    } else {
+      machine = await DatabaseUtil.findOne(Machine, { mid: machineId.toUpperCase() });
+    }
+
+    if (!machine) {
+      throw new NotFoundError('Machine not found');
+    }
+
+    const previousThreshold = machine.lowQuantityThreshold;
+    machine.lowQuantityThreshold = threshold;
+    await machine.save();
+
+    logger.info('Machine low quantity threshold updated successfully', {
+      adminId: req.user?.uid,
+      machineId: machine.mid,
+      previousThreshold,
+      newThreshold: threshold
+    });
+
+    return ApiResponse.success(res, {
+      machineId: machine.mid,
+      previousThreshold,
+      newThreshold: threshold,
+      currentQuantity: machine.puriQuantity || 0,
+      isLowStock: (machine.puriQuantity || 0) < threshold
+    }, "Machine threshold updated successfully");
+
+  } catch (error) {
+    logger.error('Update machine threshold failed', {
+      error: error.message,
+      machineId: req.params?.machineId,
+      adminId: req.user?.uid
+    });
+    throw error;
+  }
+};
+
+// ---------------------------------
+// Verify Order (Manual Verification)
+// Transitions order from PAID → OTP_VERIFIED
+// Used when auto-verification is disabled
+export const verifyOrder = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+
+    logger.info('Admin verifying order', {
+      adminId: req.user?.uid,
+      orderId
+    });
+
+    // Find order
+    const order = await Order.findById(orderId);
+
+    if (!order) {
+      throw new NotFoundError('Order not found');
+    }
+
+    // Validate order is in PAID status
+    if (order.orderStatus !== 'PAID') {
+      throw new BadRequestError(`Order cannot be verified. Current status: ${order.orderStatus}. Only PAID orders can be verified.`);
+    }
+
+    // Verify order (transitions to OTP_VERIFIED)
+    await order.updateStatus(
+      'OTP_VERIFIED',
+      `admin:${req.user?.uid}`,
+      'Order manually verified by admin',
+      {
+        verifiedAt: new Date(),
+        verifiedBy: req.user?.uid
+      }
+    );
+
+    logger.info('Order verified successfully', {
+      adminId: req.user?.uid,
+      orderId: order._id,
+      orderCounter: order.orderCounter
+    });
+
+    return ApiResponse.success(res, {
+      orderId: order._id,
+      orderCounter: order.orderCounter,
+      status: order.orderStatus,
+      machineId: order.machineId,
+      verifiedAt: new Date()
+    }, "Order verified successfully - ready for machine processing");
+
+  } catch (error) {
+    logger.error('Verify order failed', {
+      error: error.message,
+      orderId: req.params?.orderId,
+      adminId: req.user?.uid
+    });
+    throw error;
+  }
+};
+
+// ---------------------------------
+// Start Preparation (Admin/Testing)
+// Transitions order from OTP_VERIFIED → PREPARING
+// Used for testing; normally firmware does this
+export const startPreparation = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+
+    logger.info('Admin starting preparation', {
+      adminId: req.user?.uid,
+      orderId
+    });
+
+    // Find order
+    const order = await Order.findById(orderId).populate('machineId', 'mid name');
+
+    if (!order) {
+      throw new NotFoundError('Order not found');
+    }
+
+    // Validate order is in OTP_VERIFIED status
+    if (order.orderStatus !== 'OTP_VERIFIED') {
+      throw new BadRequestError(`Order cannot start preparation. Current status: ${order.orderStatus}. Only OTP_VERIFIED orders can start preparation.`);
+    }
+
+    // Start preparation (transitions to PREPARING)
+    await order.updateStatus(
+      'PREPARING',
+      `admin:${req.user?.uid}`,
+      'Preparation started manually by admin for testing',
+      {
+        prepStartedAt: new Date(),
+        startedBy: req.user?.uid
+      }
+    );
+
+    logger.info('Preparation started successfully', {
+      adminId: req.user?.uid,
+      orderId: order._id,
+      orderCounter: order.orderCounter,
+      machineId: order.machineId?.mid
+    });
+
+    return ApiResponse.success(res, {
+      orderId: order._id,
+      orderCounter: order.orderCounter,
+      status: order.orderStatus,
+      machineId: order.machineId?.mid,
+      machineName: order.machineId?.name,
+      prepStartedAt: new Date()
+    }, "Preparation started successfully");
+
+  } catch (error) {
+    logger.error('Start preparation failed', {
+      error: error.message,
+      orderId: req.params?.orderId,
+      adminId: req.user?.uid
     });
     throw error;
   }

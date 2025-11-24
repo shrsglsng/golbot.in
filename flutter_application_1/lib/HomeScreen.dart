@@ -1,8 +1,15 @@
+import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_application_1/manualOTPScreen.dart';
 import 'package:flutter_application_1/scannerScreen.dart';
 import 'package:flutter_application_1/utils/constants.dart';
+import 'package:flutter_application_1/models/orderModel.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'services/firmwareService.dart';
+import 'services/storageService.dart';
+import 'PreparingOrderScreen.dart';
 
 class HomeScreen extends StatefulWidget {
   HomeScreen({super.key});
@@ -12,6 +19,169 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  final FirmwareService _firmwareService = FirmwareService();
+  final StorageService _storageService = StorageService();
+
+  Timer? _pollTimer;
+  bool _isPolling = false;
+  String? _machineId;
+  String? _statusMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeFirmwareMode();
+  }
+
+  @override
+  void dispose() {
+    _pollTimer?.cancel();
+    super.dispose();
+  }
+
+  /// Initialize firmware mode and start polling if enabled
+  Future<void> _initializeFirmwareMode() async {
+    if (!FIRMWARE_MODE_ENABLED) {
+      print('[HomeScreen] Firmware mode disabled');
+      return;
+    }
+
+    // Get machine ID from storage
+    final prefs = await SharedPreferences.getInstance();
+    final machineData = prefs.getString("machine");
+
+    if (machineData == null) {
+      print('[HomeScreen] No machine data found, firmware mode inactive');
+      return;
+    }
+
+    final machine = jsonDecode(machineData);
+    _machineId = machine["mid"] as String?;
+
+    if (_machineId == null) {
+      print('[HomeScreen] No machine ID in machine data, firmware mode inactive');
+      return;
+    }
+
+    // DISASTER RECOVERY: Check backend for active order (source of truth)
+    print('[HomeScreen] Checking backend for active order...');
+    final activeOrder = await _firmwareService.pollForNextOrder(_machineId!);
+
+    if (activeOrder != null) {
+      print('[HomeScreen] Found active order from backend: ${activeOrder['_id']}');
+      // Navigate to PreparingOrderScreen to resume order
+      if (mounted) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => PreparingOrderScreen(
+              order: Order.fromJson(activeOrder), // Pass full order object
+              isAutoMode: false, // Resume in manual mode for safety
+            ),
+          ),
+        );
+      }
+      return; // Don't start polling, we have an active order
+    }
+
+    print('[HomeScreen] Firmware mode enabled for machine: $_machineId');
+    setState(() {
+      _statusMessage = 'Firmware Mode: Waiting for orders...';
+    });
+
+    // Start polling for orders
+    _startPolling();
+
+    // Start heartbeat timer
+    _startHeartbeat();
+  }
+
+  /// Start polling for new orders
+  void _startPolling() {
+    _pollTimer?.cancel();
+
+    _pollTimer = Timer.periodic(
+      Duration(seconds: ORDER_POLL_INTERVAL),
+      (timer) async {
+        if (_isPolling) return; // Prevent concurrent polls
+
+        _isPolling = true;
+        await _pollForOrder();
+        _isPolling = false;
+      },
+    );
+
+    // Also poll immediately
+    _pollForOrder();
+  }
+
+  /// Poll for next order from firmware API
+  Future<void> _pollForOrder() async {
+    if (_machineId == null) return;
+
+    try {
+      print('[HomeScreen] Polling for order...');
+
+      final order = await _firmwareService.pollForNextOrder(_machineId!);
+
+      if (order != null) {
+        print('[HomeScreen] Order found: ${order['_id']}');
+
+        // Cancel polling timer
+        _pollTimer?.cancel();
+
+        // Navigate to PreparingOrderScreen
+        if (mounted) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => PreparingOrderScreen(
+                order: Order.fromJson(order), // Pass full order object
+                isAutoMode: true,
+              ),
+            ),
+          );
+        }
+      } else {
+        // No order, continue polling
+        if (mounted) {
+          setState(() {
+            _statusMessage =
+                'Firmware Mode: Waiting for orders... (Last check: ${DateTime.now().toString().substring(11, 19)})';
+          });
+        }
+      }
+    } catch (e) {
+      print('[HomeScreen] Poll error: $e');
+      if (mounted) {
+        setState(() {
+          _statusMessage = 'Firmware Mode: Error - $e';
+        });
+      }
+    }
+  }
+
+  /// Send periodic heartbeat to server
+  void _startHeartbeat() {
+    Timer.periodic(
+      Duration(seconds: HEARTBEAT_INTERVAL),
+      (timer) async {
+        if (_machineId == null) return;
+
+        try {
+          await _firmwareService.sendHeartbeat(
+            _machineId!,
+            'IDLE',
+            firmwareVersion: FIRMWARE_VERSION,
+          );
+          print('[HomeScreen] Heartbeat sent');
+        } catch (e) {
+          print('[HomeScreen] Heartbeat failed: $e');
+        }
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -51,6 +221,40 @@ class _HomeScreenState extends State<HomeScreen> {
                 height: 48.0,
               ),
             )),
+        // Firmware mode status indicator
+        if (FIRMWARE_MODE_ENABLED && _statusMessage != null)
+          Positioned(
+            bottom: 80,
+            left: 16,
+            right: 16,
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.black87,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.developer_board,
+                    color: Colors.green,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      _statusMessage!,
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,

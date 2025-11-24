@@ -43,3 +43,17 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# ====================================
+# Golbot Security - Do NOT commit these files
+# ====================================
+# Production and Staging configs contain sensitive API keys
+# Use the .template versions to create your local copies
+lib/config/prod_config.dart
+lib/config/staging_config.dart
+
+# Environment files (if added later)
+.env
+.env.local
+.env.production
+.env.staging

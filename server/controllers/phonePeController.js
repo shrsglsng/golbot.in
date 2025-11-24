@@ -10,6 +10,7 @@
 
 import Payment from "../models/paymentModel.js";
 import Order from "../models/orderModel.js";
+import OrderItem from "../models/orderItemModel.js";
 import phonePeService from "../services/phonePeService.js";
 import { paymentConfig, buildRedirectUrl } from "../config/paymentConfig.js";
 import logger from "../utils/logger.js";
@@ -17,6 +18,7 @@ import { BadRequestError, ExternalServiceError } from "../utils/errors.js";
 import { Validator } from "../utils/validation.js";
 import DatabaseUtil from "../utils/database.js";
 import ApiResponse from "../utils/response.js";
+// Removed deductMachinePuris - puris are only deducted in firmware controller when preparation starts
 
 // ----------------------------------------------------------------
 // Create PhonePe order (used by frontend for checkout)
@@ -210,6 +212,27 @@ export const verifyPhonePePayment = async (req, res) => {
       });
 
       if (!verificationResult.success) {
+        // IMPORTANT: Distinguish between PENDING and FAILED payments
+        if (verificationResult.pending) {
+          // Payment is still pending - user hasn't completed it yet
+          logger.info('PhonePe payment still pending', {
+            orderId,
+            status: verificationResult.status,
+            state: verificationResult.state
+          });
+
+          return ApiResponse.badRequest(res, "Payment not yet completed", {
+            payment: {
+              orderId: order._id,
+              status: verificationResult.status || "PENDING",
+              state: verificationResult.state || "PENDING",
+              verified: false,
+              pending: true
+            }
+          });
+        }
+
+        // Payment actually failed (not just pending)
         logger.warn('PhonePe payment verification failed', {
           orderId,
           status: verificationResult.status,
@@ -253,25 +276,37 @@ export const verifyPhonePePayment = async (req, res) => {
         return ApiResponse.badRequest(res, verificationResult.message || "Payment was not successful");
       }
 
-      // Check for duplicate payment record
-      if (paymentRecord.verified) {
-        logger.info('Payment already verified', { 
-          paymentId: paymentRecord._id,
-          orderId 
-        });
-        return ApiResponse.success(res, {
-          payment: {
-            id: paymentRecord._id,
-            status: paymentRecord.status,
-            verified: paymentRecord.verified
-          }
-        }, "Payment already verified");
-      }
-
-      // Use transaction for payment verification
+      // Use transaction for payment verification with idempotency check
+      // Check inside transaction to prevent race conditions from multiple concurrent requests
       await DatabaseUtil.transaction(async (session) => {
-        // Update payment record
-        await paymentRecord.updateStatus(
+        // Atomic idempotency check: only update if payment not already verified
+        // This prevents duplicate processing if user opens payment page in multiple tabs
+        const paymentToUpdate = await Payment.findOneAndUpdate(
+          {
+            _id: paymentRecord._id,
+            verified: false // Only update if not verified yet
+          },
+          {
+            verified: true,
+            verifiedAt: new Date()
+          },
+          {
+            new: true,
+            session
+          }
+        );
+
+        // If update returned null, payment was already verified by another request
+        if (!paymentToUpdate) {
+          logger.warn('Payment already verified in concurrent request', {
+            paymentId: paymentRecord._id,
+            orderId
+          });
+          throw new BadRequestError('Payment already verified');
+        }
+
+        // Update payment record status
+        await paymentToUpdate.updateStatus(
           "SUCCESS",
           "phonepe_verification",
           "Payment verified successfully",
@@ -287,13 +322,13 @@ export const verifyPhonePePayment = async (req, res) => {
         );
 
         // Update payment details
-        paymentRecord.phonepeTransactionId = verificationResult.transactionId;
-        paymentRecord.phonepePaymentId = verificationResult.transactionId;
-        paymentRecord.paymentMethod = verificationResult.paymentMethod;
-        paymentRecord.paymentDetails = {
+        paymentToUpdate.phonepeTransactionId = verificationResult.transactionId;
+        paymentToUpdate.phonepePaymentId = verificationResult.transactionId;
+        paymentToUpdate.paymentMethod = verificationResult.paymentMethod;
+        paymentToUpdate.paymentDetails = {
           ...verificationResult.paymentDetails
         };
-        await paymentRecord.save({ session });
+        await paymentToUpdate.save({ session });
 
         // Update order status to PAID
         const orderToUpdate = await Order.findById(order._id).session(session);
@@ -312,19 +347,24 @@ export const verifyPhonePePayment = async (req, res) => {
           machineId: orderToUpdate.machineId
         });
 
+        // Mark as PAID - waiting for OTP verification
         await orderToUpdate.updateStatus(
           "PAID",
           "payment_verified",
-          "Payment verified, order ready for OTP verification",
+          "Payment confirmed - waiting for OTP verification",
           {
             paymentId: verificationResult.transactionId,
             amount: verificationResult.amount / 100
           }
         );
-        
+
         // Generate OTP for order pickup
         orderToUpdate.orderOtp = Math.floor(1000 + Math.random() * 9000).toString();
         await orderToUpdate.save({ session });
+
+        // NOTE: Puris are NOT deducted here
+        // They will be deducted when firmware starts preparation (PREPARING status)
+        // This prevents premature inventory deduction before order actually starts
       });
 
       logger.info('PhonePe payment verified and order updated successfully', { 
@@ -513,18 +553,19 @@ async function processSuccessfulPayment(paymentRecord, payload, transactionId) {
       machineId: orderToUpdate.machineId
     });
 
-    
+
+    // Mark as PAID - waiting for OTP verification
     await orderToUpdate.updateStatus(
       "PAID",
       "phonepe_webhook",
-      "Payment verified via PhonePe webhook",
+      "Payment confirmed via webhook - waiting for OTP verification",
       {
         paymentId: transactionId,
         amount: payload.amount / 100,
         webhookState: payload.state
       }
     );
-    
+
     orderToUpdate.orderOtp = orderOtp;
     await orderToUpdate.save({ session });
   });

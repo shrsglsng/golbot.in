@@ -5,6 +5,7 @@ import "package:http/http.dart" as http;
 import 'package:flutter_application_1/utils/constants.dart';
 // import 'package:fluttertoast/fluttertoast.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 Future<bool> machineLogin(
     String mid, String password, BuildContext context) async {
@@ -40,6 +41,11 @@ Future<bool> machineLogin(
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString("token", jsonRes["data"]["token"]);
     await prefs.setString("machine", jsonEncode(jsonRes["data"]["machine"]));
+
+    // Store credentials securely for firmware API authentication
+    const secureStorage = FlutterSecureStorage();
+    await secureStorage.write(key: 'mid', value: mid);
+    await secureStorage.write(key: 'password', value: password);
 
     // Show success message
     ScaffoldMessenger.of(context).showSnackBar(

@@ -18,7 +18,14 @@ import {
   getOrderStatusHistory,
   updatePaymentStatus,
   getPaymentStatusHistory,
-  adminMarkOrderReady
+  adminMarkOrderReady,
+  refillMachinePurisEndpoint,
+  setMachinePurisEndpoint,
+  getMachinePurisEndpoint,
+  bulkRefillMachines,
+  updateMachineLowQuantityThreshold,
+  verifyOrder,
+  startPreparation
 } from "../controllers/adminController.js";
 import {
   generateMachineQRToken,
@@ -56,9 +63,18 @@ router.get("/machines/:machineId/qr-tokens", admin, getMachineQRTokens);
 router.delete("/machines/:machineId/qr-tokens/:tokenId", admin, revokeMachineQRToken);
 router.post("/machines/verify-token", admin, verifyMachineToken);
 
+// Machine Puri Quantity management
+router.post("/machines/:machineId/puris/refill", admin, refillMachinePurisEndpoint);
+router.put("/machines/:machineId/puris", admin, setMachinePurisEndpoint);
+router.get("/machines/:machineId/puris", admin, getMachinePurisEndpoint);
+router.post("/machines/puris/bulk-refill", admin, bulkRefillMachines);
+router.put("/machines/:machineId/threshold", admin, updateMachineLowQuantityThreshold);
+
 // Order management with status history
 router.put("/orders/:orderId/status", admin, updateOrderStatus);
 router.get("/orders/:orderId/history", admin, getOrderStatusHistory);
+router.post("/orders/:orderId/verify", admin, verifyOrder); // Manual verification for PAID orders
+router.post("/orders/:orderId/start-preparation", admin, startPreparation); // Manual start for testing (OTP_VERIFIED → PREPARING)
 
 // Payment management with status history
 router.put("/payments/:paymentId/status", admin, updatePaymentStatus);

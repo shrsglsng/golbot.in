@@ -3,6 +3,7 @@ import Order from "../models/orderModel.js";
 import Item from "../models/itemModel.js";
 import OrderItem from "../models/orderItemModel.js";
 import Machine from "../models/machineModel.js";
+import Payment from "../models/paymentModel.js";
 import reportIssueModel from "../models/reportIssueModel.js";
 import logger from "../utils/logger.js";
 import { BadRequestError, NotFoundError, ValidationError } from "../utils/errors.js";
@@ -10,6 +11,10 @@ import { Validator } from "../utils/validation.js";
 import DatabaseUtil from "../utils/database.js";
 import machineResolver from "../services/machineResolver.js";
 import ApiResponse from "../utils/response.js";
+import {
+  calculatePurisNeeded,
+  checkMachinePuriAvailability
+} from "../utils/quantityUtils.js";
 
 // ----------------------------------------------------------------------------
 // Create order (User initiated, payment pending)
@@ -103,10 +108,113 @@ export const createOrder = async (req, res) => {
       location: machine.location
     });
 
-    // Allow multiple orders since actual processing doesn't start until OTP entry
-    // Users can place multiple orders and choose which one to process with OTP
-    // No blocking based on existing order status - all orders are allowed
-    logger.debug('Multiple orders allowed - no blocking restrictions', { userId: uid });
+    // Check for existing active orders
+    // A user can only have one active order at a time
+    // Active means: not COMPLETED, not CANCELLED, and not PAYMENT_FAILED
+    const activeOrder = await DatabaseUtil.findOne(Order, {
+      uid: new mongoose.Types.ObjectId(uid),
+      orderStatus: {
+        $nin: ["COMPLETED", "CANCELLED", "PAYMENT_FAILED"]
+      },
+      orderCompleted: false
+    }, {
+      select: '_id orderCounter orderStatus createdAt amount machineId',
+      populate: [
+        { path: 'machineId', select: 'mid name' }
+      ],
+      sort: { createdAt: -1 }
+    });
+
+    if (activeOrder) {
+      logger.warn('Active order exists - blocking new order creation', {
+        userId: uid,
+        existingOrderId: activeOrder._id,
+        existingOrderStatus: activeOrder.orderStatus,
+        existingOrderCounter: activeOrder.orderCounter
+      });
+      throw new BadRequestError(
+        'You have an active order in progress. Please complete or cancel it before placing a new order.',
+        {
+          activeOrder: {
+            orderId: activeOrder._id,
+            orderCounter: activeOrder.orderCounter,
+            status: activeOrder.orderStatus,
+            machineId: activeOrder.machineId?.mid,
+            machineName: activeOrder.machineId?.name,
+            amount: activeOrder.amount?.total,
+            createdAt: activeOrder.createdAt
+          }
+        }
+      );
+    }
+
+    logger.debug('No active orders found - proceeding with order creation', { userId: uid });
+
+    // Check for recent failed payment attempts to prevent spam
+    // Limit users to 3 failed payment attempts in 24 hours
+    const last24Hours = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const failedOrderCount = await Order.countDocuments({
+      uid: new mongoose.Types.ObjectId(uid),
+      orderStatus: "PAYMENT_FAILED",
+      createdAt: { $gte: last24Hours }
+    });
+
+    if (failedOrderCount >= 3) {
+      logger.warn('Too many failed payment attempts', {
+        userId: uid,
+        failedCount: failedOrderCount,
+        machineId: machine.mid
+      });
+
+      throw new BadRequestError(
+        'Too many failed payment attempts in the last 24 hours. Please contact support if you need assistance.',
+        {
+          failedAttempts: failedOrderCount,
+          limit: 3,
+          timeWindow: '24 hours'
+        }
+      );
+    }
+
+    // Check machine puri availability before processing order
+    const { totalPuris, itemsBreakdown } = await calculatePurisNeeded(items);
+    const puriAvailability = await checkMachinePuriAvailability(machine._id, totalPuris);
+
+    logger.info('Puri availability check', {
+      machineId: machine.mid,
+      totalPurisNeeded: totalPuris,
+      currentQuantity: puriAvailability.currentQuantity,
+      hasEnough: puriAvailability.hasEnough,
+      remaining: puriAvailability.remaining
+    });
+
+    if (!puriAvailability.hasEnough) {
+      logger.warn('Insufficient puris for order', {
+        userId: uid,
+        machineId: machine.mid,
+        needed: totalPuris,
+        available: puriAvailability.currentQuantity
+      });
+
+      throw new BadRequestError(
+        `Insufficient puris available. This order needs ${totalPuris} puris, but only ${puriAvailability.currentQuantity} are available.`,
+        {
+          purisNeeded: totalPuris,
+          purisAvailable: puriAvailability.currentQuantity,
+          itemsBreakdown
+        }
+      );
+    }
+
+    // Warn if low stock
+    if (puriAvailability.isLowStock) {
+      logger.warn('Low puri stock after this order', {
+        machineId: machine.mid,
+        currentQuantity: puriAvailability.currentQuantity,
+        afterOrder: puriAvailability.remaining,
+        threshold: machine.lowQuantityThreshold
+      });
+    }
 
     // Calculate order amount with validation
     let price = 0, gst = 0;
@@ -487,6 +595,69 @@ export const getIsOrderCancelled = async (req, res) => {
 };
 
 // ----------------------------------------------------------------------------
+// Get active order (if exists)
+// Returns the user's active order (not completed, cancelled, or payment failed)
+export const getActiveOrder = async (req, res) => {
+  try {
+    const { uid } = req.user;
+
+    logger.info('Get active order request', { userId: uid });
+
+    const activeOrder = await DatabaseUtil.findOne(Order, {
+      uid: new mongoose.Types.ObjectId(uid),
+      orderStatus: {
+        $nin: ["COMPLETED", "CANCELLED", "PAYMENT_FAILED"]
+      },
+      orderCompleted: false
+    }, {
+      select: '_id orderCounter orderStatus orderOtp createdAt amount machineId',
+      populate: [
+        { path: 'machineId', select: 'mid name location' }
+      ],
+      sort: { createdAt: -1 }
+    });
+
+    if (!activeOrder) {
+      logger.debug('No active order found', { userId: uid });
+      return ApiResponse.success(res, {
+        hasActiveOrder: false,
+        activeOrder: null
+      }, "No active order");
+    }
+
+    logger.info('Active order found', {
+      userId: uid,
+      orderId: activeOrder._id,
+      orderStatus: activeOrder.orderStatus,
+      orderCounter: activeOrder.orderCounter
+    });
+
+    return ApiResponse.success(res, {
+      hasActiveOrder: true,
+      activeOrder: {
+        orderId: activeOrder._id.toString(),
+        oid: activeOrder._id.toString(),
+        orderCounter: activeOrder.orderCounter,
+        orderStatus: activeOrder.orderStatus,
+        orderOtp: activeOrder.orderOtp,
+        amount: activeOrder.amount,
+        createdAt: activeOrder.createdAt,
+        machineId: activeOrder.machineId?.mid,
+        machineName: activeOrder.machineId?.name,
+        machineLocation: activeOrder.machineId?.location
+      }
+    }, "Active order retrieved");
+
+  } catch (error) {
+    logger.error('Get active order failed', {
+      error: error.message,
+      userId: req.user?.uid
+    });
+    throw error;
+  }
+};
+
+// ----------------------------------------------------------------------------
 // Report issue (includes image upload)
 export const createReportIssue = async (req, res) => {
   try {
@@ -576,11 +747,10 @@ export const getAllOrders = async (req, res) => {
     if (orderId) {
       query._id = new mongoose.Types.ObjectId(orderId);
     }
-    
-    if (machineId) {
-      query.machineId = { $regex: machineId, $options: "i" };
-    }
-    
+
+    // Note: machineId filter is applied in aggregation pipeline after $lookup
+    // because machineId is stored as ObjectId reference
+
     if (orderStatus && orderStatus !== "ALL") {
       query.orderStatus = orderStatus;
     }
@@ -602,7 +772,7 @@ export const getAllOrders = async (req, res) => {
 
     // Pagination
     const currentPage = Math.max(1, Number(page) || 1);
-    const limit = 10;
+    const limit = Math.min(1000, Number(req.query.limit) || 10); // Allow custom limit up to 1000
     const skip = (currentPage - 1) * limit;
 
     logger.debug('Order query built', { query, page: currentPage, limit, skip });
@@ -618,11 +788,23 @@ export const getAllOrders = async (req, res) => {
         }
       },
       {
+        $unwind: {
+          path: "$userData",
+          preserveNullAndEmptyArrays: true
+        }
+      },
+      {
         $lookup: {
           from: "machines",
           localField: "machineId",
           foreignField: "_id",
           as: "machineData"
+        }
+      },
+      {
+        $unwind: {
+          path: "$machineData",
+          preserveNullAndEmptyArrays: true
         }
       },
       {
@@ -644,7 +826,8 @@ export const getAllOrders = async (req, res) => {
       {
         $match: {
           ...query,
-          ...(phone && { "userData.phone": { $regex: phone, $options: "i" } })
+          ...(phone && { "userData.phone": { $regex: phone, $options: "i" } }),
+          ...(machineId && { "machineData.mid": { $regex: machineId, $options: "i" } })
         }
       },
       { $sort: { createdAt: -1 } },
@@ -657,9 +840,9 @@ export const getAllOrders = async (req, res) => {
               $project: {
                 _id: 0,
                 orderId: "$_id",
-                phone: { $arrayElemAt: ["$userData.phone", 0] },
-                machineId: { $arrayElemAt: ["$machineData.mid", 0] },
-                machineName: { $arrayElemAt: ["$machineData.name", 0] },
+                phone: "$userData.phone",
+                machineId: "$machineData.mid",
+                machineName: "$machineData.name",
                 orderStatus: 1,
                 orderDate: "$createdAt",
                 amount: "$amount.total",
@@ -700,7 +883,102 @@ export const getAllOrders = async (req, res) => {
               }
             }
           ],
-          totalCount: [{ $count: "count" }]
+          totalCount: [{ $count: "count" }],
+          orderCounts: [
+            {
+              $project: {
+                amount: "$amount.total",
+                orderItemsData: 1,
+                itemDetails: 1
+              }
+            },
+            { $unwind: "$orderItemsData" },
+            {
+              $addFields: {
+                itemName: {
+                  $arrayElemAt: [
+                    {
+                      $map: {
+                        input: {
+                          $filter: {
+                            input: "$itemDetails",
+                            as: "item",
+                            cond: { $eq: ["$$item._id", "$orderItemsData.itemId"] }
+                          }
+                        },
+                        as: "matchedItem",
+                        in: "$$matchedItem.name"
+                      }
+                    },
+                    0
+                  ]
+                }
+              }
+            },
+            {
+              $group: {
+                _id: null,
+                totAmt: { $sum: "$amount" },
+                items: {
+                  $push: {
+                    name: "$itemName",
+                    qty: "$orderItemsData.qty"
+                  }
+                }
+              }
+            },
+            {
+              $project: {
+                _id: 0,
+                totAmt: 1,
+                GOLQty: {
+                  $sum: {
+                    $map: {
+                      input: {
+                        $filter: {
+                          input: "$items",
+                          as: "item",
+                          cond: { $eq: ["$$item.name", "golgappa"] }
+                        }
+                      },
+                      as: "filtered",
+                      in: "$$filtered.qty"
+                    }
+                  }
+                },
+                PANQty: {
+                  $sum: {
+                    $map: {
+                      input: {
+                        $filter: {
+                          input: "$items",
+                          as: "item",
+                          cond: { $eq: ["$$item.name", "pani puri with onions"] }
+                        }
+                      },
+                      as: "filtered",
+                      in: "$$filtered.qty"
+                    }
+                  }
+                },
+                PWOQty: {
+                  $sum: {
+                    $map: {
+                      input: {
+                        $filter: {
+                          input: "$items",
+                          as: "item",
+                          cond: { $eq: ["$$item.name", "pani puri without onions"] }
+                        }
+                      },
+                      as: "filtered",
+                      in: "$$filtered.qty"
+                    }
+                  }
+                }
+              }
+            }
+          ]
         }
       }
     ];
@@ -709,19 +987,27 @@ export const getAllOrders = async (req, res) => {
     const orders = result.orders || [];
     const totalOrders = result.totalCount[0]?.count || 0;
     const numOfPages = Math.ceil(totalOrders / limit);
+    const orderCounts = result.orderCounts[0] || {
+      totAmt: 0,
+      GOLQty: 0,
+      PANQty: 0,
+      PWOQty: 0
+    };
 
-    logger.info('Orders retrieved successfully', { 
-      totalOrders, 
-      page: currentPage, 
+    logger.info('Orders retrieved successfully', {
+      totalOrders,
+      page: currentPage,
       numOfPages,
-      returnedCount: orders.length 
+      returnedCount: orders.length,
+      orderCounts
     });
 
     return ApiResponse.legacy(res, {
       orders,
       totalOrders,
       numOfPages,
-      currentPage
+      currentPage,
+      orderCounts
     }, "Orders retrieved successfully");
 
   } catch (error) {
@@ -851,7 +1137,7 @@ export const getOrderById = async (req, res) => {
 
     // Find order and ensure it belongs to the user
     const order = await DatabaseUtil.findOne(Order, { _id: orderId, uid }, {
-      select: '_id orderCounter orderStatus orderCompleted orderOtp amount createdAt updatedAt machineId',
+      select: '_id orderCounter orderStatus orderCompleted orderOtp amount createdAt updatedAt machineId statusHistory',
       populate: [
         { path: 'machineId', select: 'mid name location' }
       ]
@@ -895,12 +1181,117 @@ export const getOrderById = async (req, res) => {
         machineName: order.machineId?.name || null,
         machineLocation: order.machineId?.location || null,
         createdAt: order.createdAt,
-        updatedAt: order.updatedAt
+        updatedAt: order.updatedAt,
+        statusHistory: order.statusHistory
       }
     }, "Order retrieved successfully");
 
   } catch (error) {
     logger.error('Get order by ID failed', {
+      error: error.message,
+      userId: req.user?.uid,
+      orderId: req.params?.orderId
+    });
+    throw error;
+  }
+};
+
+// ----------------------------------------------------------------------------
+// Cancel order (User initiated)
+// Only PENDING and PAYMENT_FAILED orders can be cancelled
+// ----------------------------------------------------------------------------
+export const cancelOrder = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const { uid } = req.user;
+
+    logger.info('Order cancellation initiated', {
+      userId: uid,
+      orderId
+    });
+
+    // Validate order ID
+    if (!mongoose.Types.ObjectId.isValid(orderId)) {
+      throw new ValidationError('Invalid order ID format');
+    }
+
+    // Find order
+    const order = await DatabaseUtil.findOne(Order, {
+      _id: orderId,
+      userId: uid
+    });
+
+    if (!order) {
+      throw new NotFoundError('Order not found');
+    }
+
+    // Check if order can be cancelled
+    const cancellableStatuses = ['PENDING', 'PAYMENT_FAILED'];
+    if (!cancellableStatuses.includes(order.orderStatus)) {
+      throw new BadRequestError(
+        `Cannot cancel order with status ${order.orderStatus}. Only PENDING or PAYMENT_FAILED orders can be cancelled.`
+      );
+    }
+
+    // Find associated payment (if any)
+    const payment = await DatabaseUtil.findOne(Payment, { orderId: order._id });
+
+    // Update order status to CANCELLED
+    await order.updateStatus(
+      'CANCELLED',
+      'user_cancellation',
+      'Order cancelled by user',
+      {
+        cancelledBy: uid,
+        cancelledAt: new Date(),
+        previousStatus: order.orderStatus
+      }
+    );
+
+    // Also cancel the payment if it exists and is not verified
+    if (payment && !payment.verified) {
+      await payment.updateStatus(
+        'CANCELLED',
+        'order_cancellation',
+        'Payment cancelled due to order cancellation',
+        {
+          cancelledBy: uid,
+          cancelledAt: new Date(),
+          previousStatus: payment.status
+        },
+        {
+          orderId: order._id
+        }
+      );
+
+      logger.info('Payment cancelled along with order', {
+        userId: uid,
+        orderId: order._id,
+        paymentId: payment._id,
+        previousPaymentStatus: payment.status
+      });
+    }
+
+    logger.info('Order cancelled successfully', {
+      userId: uid,
+      orderId: order._id,
+      previousStatus: order.orderStatus,
+      paymentCancelled: payment && !payment.verified
+    });
+
+    return ApiResponse.success(res, {
+      order: {
+        oid: order._id,
+        orderStatus: 'CANCELLED',
+        paymentCancelled: payment && !payment.verified,
+        message: 'Order cancelled successfully'
+      }
+    }, payment && !payment.verified
+      ? "Order and payment cancelled successfully"
+      : "Order cancelled successfully");
+
+  } catch (error) {
+    logger.error('Cancel order failed', {
       error: error.message,
       userId: req.user?.uid,
       orderId: req.params?.orderId

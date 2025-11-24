@@ -245,13 +245,14 @@ export const startMachine = async (req, res) => {
       throw new BadRequestError("Machine is currently disabled");
     }
 
-    // Find valid order with OTP
-    const order = await DatabaseUtil.findOne(Order, { 
+    // Find PAID order with matching OTP
+    // Flow: Payment → PAID → User enters OTP → Verify → OTP_VERIFIED → PREPARING
+    const order = await DatabaseUtil.findOne(Order, {
       orderOtp,
       machineId: machine._id,
-      orderStatus: "PAID",
+      orderStatus: "PAID", // Accept PAID orders for OTP verification
       orderCompleted: false
-    }, { 
+    }, {
       sort: { createdAt: -1 },
       populate: [
         { path: 'uid', select: 'phone' },
@@ -260,12 +261,12 @@ export const startMachine = async (req, res) => {
     });
 
     if (!order) {
-      logger.warn('Invalid OTP or order not found', { 
+      logger.warn('Invalid OTP or order not found', {
         orderOtp,
         mid,
-        machineId: machine._id 
+        machineId: machine._id
       });
-      throw new BadRequestError("Invalid OTP or order not ready for verification");
+      throw new BadRequestError("Invalid OTP or order not ready. Please check payment status.");
     }
 
     if (!order.uid) {
@@ -278,39 +279,30 @@ export const startMachine = async (req, res) => {
 
     // Use transaction to update order status
     await DatabaseUtil.transaction(async (session) => {
-      // First update to OTP_VERIFIED status
       const orderToUpdate = await Order.findById(order._id).session(session);
+
+      // ONLY verify OTP and update to OTP_VERIFIED
+      // Firmware will pick it up and start preparation
       await orderToUpdate.updateStatus(
         "OTP_VERIFIED",
         "machine",
-        "OTP verified, starting preparation",
+        "OTP verified by user at machine - ready for preparation",
         {
           machineId: machine.mid,
           machineName: machine.name,
-          location: machine.location
+          location: machine.location,
+          verifiedAt: new Date()
         }
       );
-      
-      // Then immediately update to PREPARING status
-      await orderToUpdate.updateStatus(
-        "PREPARING",
-        "machine",
-        "Order preparation started by machine",
-        {
-          machineId: machine.mid,
-          machineName: machine.name,
-          location: machine.location
-        }
-      );
-      
-      // Clear OTP after use and set completion info
-      orderToUpdate.orderOtp = "";
+
+      // Keep OTP for now (firmware might need to verify)
+      // Set estimated completion time
       orderToUpdate.estimatedCompletionTime = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes estimate
       await orderToUpdate.save({ session });
 
-      // Update machine status
+      // Update machine status to OTP_VERIFIED (waiting for firmware to start)
       await DatabaseUtil.updateById(Machine, machine._id, {
-        mstatus: "PREPARING",
+        mstatus: "OTP_VERIFIED",
         currentOrderId: order._id,
         lastOrderAt: new Date()
       }, { session });
@@ -323,24 +315,27 @@ export const startMachine = async (req, res) => {
       userPhone: order.uid.phone?.substring(0, 6) + 'xxxx'
     });
 
+    // Fetch updated order to get current status
+    const updatedOrder = await Order.findById(order._id);
+
     // Use specific response format expected by Flutter app
     return res.status(200).json({
       result: {
         order: {
-          _id: order._id,
-          orderId: order._id,
-          status: "PREPARING",
-          ostatus: "PREPARING",
+          _id: updatedOrder._id,
+          orderId: updatedOrder._id,
+          status: updatedOrder.orderStatus,
+          ostatus: updatedOrder.orderStatus,
           userPhone: order.uid.phone?.substring(0, 6) + 'xxxx',
-          items: order.items || [],
-          orderCounter: order.orderCounter
+          items: updatedOrder.items || [],
+          orderCounter: updatedOrder.orderCounter
         },
         machine: {
           mid: machine.mid,
-          status: "PREPARING"
+          status: updatedOrder.orderStatus
         }
       },
-      message: "Machine started successfully"
+      message: "OTP verified successfully - waiting for machine to start"
     });
 
   } catch (error) {

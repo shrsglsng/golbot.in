@@ -23,6 +23,7 @@ import PhonePeRoute from "./routes/phonePeRoutes.js";
 import paymentWebhook from "./routes/paymentWebhook.js";
 import PublicMachineRoute from "./routes/publicMachineRoute.js";
 import ReportRoute from "./routes/reportRoute.js";
+import FirmwareRoute from "./firmware-server/routes/firmwareRoutes.js";
 
 import { getAllItems } from "./controllers/utilController.js";
 
@@ -132,7 +133,9 @@ const corsOptions = {
   credentials: true,
   optionsSuccessStatus: 200,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'X-Mobile-API-Key']
+  // Include firmware headers for development (localhost Flutter web app)
+  // Production firmware endpoints still block non-localhost browser access (see blockBrowserAccess middleware)
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'X-Mobile-API-Key', 'X-Machine-ID', 'X-Machine-Password']
 };
 
 app.use(cors(corsOptions));
@@ -172,6 +175,9 @@ app.use(`${BASE_URL_PATH}payment`, PaymentRoute);
 app.use(`${BASE_URL_PATH}machines`, PublicMachineRoute);
 app.use(`${BASE_URL_PATH}phonepe`, PhonePeRoute);
 app.use(`${BASE_URL_PATH}reports`, ReportRoute);
+
+// Firmware API routes (separate endpoint for ESP32/firmware devices)
+app.use("/api/firmware", FirmwareRoute);
 
 // Utility routes
 app.get(`${BASE_URL_PATH}getAllItems`, getAllItems);

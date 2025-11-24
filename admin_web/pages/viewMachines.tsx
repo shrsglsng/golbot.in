@@ -23,7 +23,8 @@ import {
   Download,
   Settings,
   MapPin,
-  Activity
+  Activity,
+  Package
 } from "lucide-react";
 import { toast } from "sonner";
 import { updateMachineStatus, softDeleteMachine, restoreMachine } from "@/services/machineQR";
@@ -38,6 +39,8 @@ interface Machine {
   email?: string;
   ipAddress?: string;
   createdAt?: string;
+  puriQuantity?: number;
+  lowQuantityThreshold?: number;
 }
 
 export default function ViewMachines() {
@@ -52,6 +55,10 @@ export default function ViewMachines() {
 
   const [qrDialogOpen, setQrDialogOpen] = useState(false);
   const [selectedMachineId, setSelectedMachineId] = useState<string | null>(null);
+  const [refillDialogOpen, setRefillDialogOpen] = useState(false);
+  const [refillQuantity, setRefillQuantity] = useState<number>(0);
+  const [selectedMachine, setSelectedMachine] = useState<Machine | null>(null);
+  const [newThreshold, setNewThreshold] = useState<number>(30);
 
   useEffect(() => {
     fetchMachines();
@@ -159,6 +166,80 @@ export default function ViewMachines() {
     }
   };
 
+  const handleOpenRefillDialog = (machine: Machine) => {
+    setSelectedMachine(machine);
+    setRefillQuantity(100); // Default refill amount
+    setNewThreshold(machine.lowQuantityThreshold || 30);
+    setRefillDialogOpen(true);
+  };
+
+  const handleCloseRefillDialog = () => {
+    setRefillDialogOpen(false);
+    setSelectedMachine(null);
+    setRefillQuantity(0);
+    setNewThreshold(30);
+  };
+
+  const handleRefillPuris = async () => {
+    if (!selectedMachine || refillQuantity <= 0) {
+      toast.error("Please enter a valid quantity");
+      return;
+    }
+
+    try {
+      const baseUrl = process.env.NEXT_PUBLIC_SERVER_URL;
+      if (!baseUrl) throw new Error("Server URL not set");
+
+      // Refill puris
+      const refillRes = await axios.post(
+        `${baseUrl}/admin/machines/${selectedMachine.mid}/puris/refill`,
+        { quantity: refillQuantity },
+        {
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${localStorage.getItem("Token")}`,
+          },
+        }
+      );
+
+      // Update threshold if changed
+      const thresholdChanged = newThreshold !== selectedMachine.lowQuantityThreshold;
+      if (thresholdChanged) {
+        await axios.put(
+          `${baseUrl}/admin/machines/${selectedMachine.mid}/threshold`,
+          { threshold: newThreshold },
+          {
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${localStorage.getItem("Token")}`,
+            },
+          }
+        );
+      }
+
+      if (refillRes.status === 200) {
+        const message = thresholdChanged
+          ? `Added ${refillQuantity} puris and updated threshold to ${newThreshold}`
+          : `Added ${refillQuantity} puris to ${selectedMachine.mid}`;
+        toast.success(message);
+        handleCloseRefillDialog();
+        fetchMachines();
+      }
+    } catch (error: any) {
+      console.error("Failed to update machine:", error);
+      toast.error(error.response?.data?.message || "Failed to update machine");
+    }
+  };
+
+  const getPuriStatusColor = (machine: Machine): string => {
+    const quantity = machine.puriQuantity || 0;
+    const threshold = machine.lowQuantityThreshold || 30;
+
+    if (quantity === 0) return "text-red-500";
+    if (quantity < threshold) return "text-yellow-500";
+    return "text-green-500";
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case "CONNECTED":
@@ -253,6 +334,7 @@ export default function ViewMachines() {
                     <TableHead>Machine ID</TableHead>
                     <TableHead>Location</TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead>Puri Stock</TableHead>
                     <TableHead>State</TableHead>
                     <TableHead>IP Address</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
@@ -266,13 +348,14 @@ export default function ViewMachines() {
                         <TableCell><Skeleton className="h-4 w-32" /></TableCell>
                         <TableCell><Skeleton className="h-6 w-24" /></TableCell>
                         <TableCell><Skeleton className="h-6 w-20" /></TableCell>
+                        <TableCell><Skeleton className="h-6 w-20" /></TableCell>
                         <TableCell><Skeleton className="h-4 w-28" /></TableCell>
                         <TableCell><Skeleton className="h-8 w-32 ml-auto" /></TableCell>
                       </TableRow>
                     ))
                   ) : filteredMachines.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                         No machines found
                       </TableCell>
                     </TableRow>
@@ -295,6 +378,24 @@ export default function ViewMachines() {
                           </Badge>
                         </TableCell>
                         <TableCell>
+                          <div className="flex flex-col gap-1">
+                            <div className="flex items-center gap-2">
+                              <Package className={`h-4 w-4 ${getPuriStatusColor(machine)}`} />
+                              <span className={`font-medium ${getPuriStatusColor(machine)}`}>
+                                {machine.puriQuantity || 0}
+                              </span>
+                              {(machine.puriQuantity || 0) < (machine.lowQuantityThreshold || 30) && (
+                                <Badge variant="warning" className="text-xs">
+                                  Low
+                                </Badge>
+                              )}
+                            </div>
+                            <span className="text-xs text-muted-foreground">
+                              Alert: {machine.lowQuantityThreshold || 30}
+                            </span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
                           <Badge variant={machine.isActive ? "default" : "outline"}>
                             {machine.isActive ? "Active" : "Deleted"}
                           </Badge>
@@ -306,6 +407,14 @@ export default function ViewMachines() {
                           <div className="flex justify-end gap-2">
                             {machine.isActive ? (
                               <>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleOpenRefillDialog(machine)}
+                                  title="Refill puris"
+                                >
+                                  <Package className="h-4 w-4" />
+                                </Button>
                                 <Button
                                   variant="outline"
                                   size="sm"
@@ -392,6 +501,85 @@ export default function ViewMachines() {
             machineId={selectedMachineId}
           />
         )}
+
+        {/* Puri Refill Dialog */}
+        <Dialog open={refillDialogOpen} onOpenChange={setRefillDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Manage Puris - {selectedMachine?.mid}</DialogTitle>
+              <DialogDescription>
+                Add puris and configure low stock alert threshold. Current stock: {selectedMachine?.puriQuantity || 0} puris
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="refillQuantity">Quantity to Add</Label>
+                <Input
+                  id="refillQuantity"
+                  type="number"
+                  min="1"
+                  step="1"
+                  placeholder="100"
+                  value={refillQuantity || ""}
+                  onChange={(e) => setRefillQuantity(parseInt(e.target.value) || 0)}
+                />
+                <p className="text-sm text-muted-foreground">
+                  New total: {(selectedMachine?.puriQuantity || 0) + refillQuantity} puris
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="lowThreshold">Low Stock Alert Threshold</Label>
+                <Input
+                  id="lowThreshold"
+                  type="number"
+                  min="0"
+                  step="1"
+                  placeholder="30"
+                  value={newThreshold || ""}
+                  onChange={(e) => setNewThreshold(parseInt(e.target.value) || 30)}
+                />
+                <p className="text-sm text-muted-foreground">
+                  Alert when stock falls below this amount (currently: {selectedMachine?.lowQuantityThreshold || 30})
+                </p>
+              </div>
+
+              <div className="rounded-lg bg-muted p-4 space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Current Stock:</span>
+                  <span className="font-medium">{selectedMachine?.puriQuantity || 0} puris</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Adding:</span>
+                  <span className="font-medium">+{refillQuantity} puris</span>
+                </div>
+                <div className="flex justify-between text-sm pt-2 border-t">
+                  <span className="font-medium">After Refill:</span>
+                  <span className="font-bold">{(selectedMachine?.puriQuantity || 0) + refillQuantity} puris</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Alert Threshold:</span>
+                  <span className="font-medium">{newThreshold} puris</span>
+                </div>
+                <div className="flex justify-between text-sm text-muted-foreground">
+                  <span>Estimated Orders:</span>
+                  <span>~{Math.floor(((selectedMachine?.puriQuantity || 0) + refillQuantity) / 6)}</span>
+                </div>
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={handleCloseRefillDialog}>
+                Cancel
+              </Button>
+              <Button onClick={handleRefillPuris} disabled={refillQuantity <= 0}>
+                <Package className="mr-2 h-4 w-4" />
+                Save Changes
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </AppLayout>
     </>
   );

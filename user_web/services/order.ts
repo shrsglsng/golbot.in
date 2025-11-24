@@ -247,6 +247,49 @@ export async function getIsOrderCancelled(): Promise<boolean> {
   return false;
 }
 
+// Get Active Order
+export async function getActiveOrder(): Promise<{
+  hasActiveOrder: boolean;
+  activeOrder: OrderModel | null;
+} | undefined> {
+  const baseUrl = process.env.NEXT_PUBLIC_SERVER_URL;
+  if (!baseUrl) throw new Error("Server URL not set");
+
+  const url = `${baseUrl}/order/active`;
+  const token = localStorage.getItem("Token");
+
+  // If no token, return no active order without making the API call
+  if (!token) {
+    return { hasActiveOrder: false, activeOrder: null };
+  }
+
+  try {
+    const res = await axios.get(url, {
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (res.status === 200) {
+      const { hasActiveOrder, activeOrder } = res.data.data;
+      return {
+        hasActiveOrder,
+        activeOrder: activeOrder ? { ...activeOrder, oid: activeOrder.orderId } : null
+      };
+    }
+  } catch (error: any) {
+    console.error("getActiveOrder error:", error);
+
+    if (error.response?.status === 401) {
+      localStorage.removeItem("Token");
+      throw new Error("AUTHENTICATION_REQUIRED");
+    }
+  }
+
+  return { hasActiveOrder: false, activeOrder: null };
+}
+
 // Report Issue
 export async function reportIssue(data: any): Promise<boolean> {
   const baseUrl = process.env.NEXT_PUBLIC_SERVER_URL;

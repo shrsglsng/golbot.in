@@ -7,7 +7,8 @@ const itemSchema = new mongoose.Schema({
   price: { type: Number, min: 0 },
   gst: { type: Number, min: 0 },
   isAvailable: { type: Boolean, default: true },
-  qtyLeft: { type: Number, default: 0, min: 0 },
+  // Number of puris consumed per plate of this item
+  puriPerPlate: { type: Number, default: 6, min: 0 },
 }, { timestamps: true });
 
 export default mongoose.model("Item", itemSchema);

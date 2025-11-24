@@ -32,7 +32,7 @@ const seedItems = async () => {
         price: 150,
         gst: 0,
         isAvailable: true,
-        qtyLeft: 100,
+        puriPerPlate: 6, // 6 puris per plate
       },
       {
         name: "pani puri with onions",
@@ -41,7 +41,7 @@ const seedItems = async () => {
         price: 200,
         gst: 0,
         isAvailable: true,
-        qtyLeft: 100,
+        puriPerPlate: 8, // 8 puris per plate
       },
       {
         name: "pani puri without onions",
@@ -50,7 +50,7 @@ const seedItems = async () => {
         price: 180,
         gst: 0,
         isAvailable: true,
-        qtyLeft: 100,
+        puriPerPlate: 8, // 8 puris per plate
       },
     ];
 

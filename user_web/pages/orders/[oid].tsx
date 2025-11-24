@@ -19,6 +19,7 @@ import {
   QrCode as QrCodeIcon,
   AlertTriangle,
   ShoppingCart,
+  CreditCard,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -29,6 +30,8 @@ export default function OrderDetailPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [order, setOrder] = useState<any>(null);
   const [pollingInterval, setPollingInterval] = useState<NodeJS.Timeout | null>(null);
+  const [isCancelling, setIsCancelling] = useState(false);
+  const [isRetryingPayment, setIsRetryingPayment] = useState(false);
 
   // Fetch fresh order data from API
   const fetchOrderData = async () => {
@@ -175,8 +178,8 @@ export default function OrderDetailPage() {
       bg: "bg-indigo-100",
       gradient: "from-indigo-500 via-indigo-600 to-purple-600",
       badge: "default",
-      label: "Ready to Prepare",
-      description: "Order verified and ready for preparation"
+      label: "OTP Verified",
+      description: "Waiting for machine to start preparation"
     },
     PREPARING: {
       icon: Loader2,
@@ -246,21 +249,6 @@ export default function OrderDetailPage() {
     };
   };
 
-  const getOrderProgress = (orderStatus: string) => {
-    const statuses = ['PENDING', 'PAID', 'OTP_VERIFIED', 'PREPARING', 'READY_FOR_PICKUP', 'COMPLETED'];
-
-    if (orderStatus === 'CANCELLED') {
-      return { current: 1, total: 2, cancelled: true, failed: false };
-    }
-
-    if (orderStatus === 'PAYMENT_FAILED') {
-      return { current: 1, total: 2, cancelled: false, failed: true };
-    }
-
-    const currentIndex = statuses.indexOf(orderStatus);
-    return { current: currentIndex, total: statuses.length, cancelled: false, failed: false };
-  };
-
   const getOrderSteps = (orderStatus: string) => {
     // For payment failed orders, show simplified journey
     if (orderStatus === 'PAYMENT_FAILED') {
@@ -270,12 +258,32 @@ export default function OrderDetailPage() {
       ];
     }
 
-    // For cancelled orders, show simplified journey
+    // For cancelled orders, show the actual journey based on statusHistory
     if (orderStatus === 'CANCELLED') {
-      return [
+      const steps = [
         { status: 'PENDING', label: 'Order Placed', icon: Receipt },
-        { status: 'CANCELLED', label: 'Cancelled', icon: XCircle },
       ];
+
+      // Add steps based on statusHistory to show what was actually completed
+      const statusHistory = order?.statusHistory || [];
+      const completedStatuses = statusHistory.map((h: any) => h.status);
+
+      if (completedStatuses.includes('PAID')) {
+        steps.push({ status: 'PAID', label: 'Payment Confirmed', icon: CheckCircle2 });
+      }
+      if (completedStatuses.includes('OTP_VERIFIED')) {
+        steps.push({ status: 'OTP_VERIFIED', label: 'Verified', icon: CheckCircle2 });
+      }
+      if (completedStatuses.includes('PREPARING')) {
+        steps.push({ status: 'PREPARING', label: 'Preparing', icon: Loader2 });
+      }
+      if (completedStatuses.includes('READY_FOR_PICKUP')) {
+        steps.push({ status: 'READY_FOR_PICKUP', label: 'Ready', icon: Package });
+      }
+
+      // Add cancelled as the final step
+      steps.push({ status: 'CANCELLED', label: 'Cancelled', icon: XCircle });
+      return steps;
     }
 
     // Normal journey for successful orders
@@ -290,6 +298,94 @@ export default function OrderDetailPage() {
   };
 
   const orderSteps = getOrderSteps(order?.orderStatus || 'PENDING');
+
+  const handleCancelOrder = async () => {
+    if (!confirm("Are you sure you want to cancel this order? This action cannot be undone.")) {
+      return;
+    }
+
+    setIsCancelling(true);
+    try {
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_SERVER_URL}/order/${oid}/cancel`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("Token")}`,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to cancel order");
+      }
+
+      toast.success("Order Cancelled", "Your order has been cancelled successfully");
+
+      // Refresh order data
+      const freshData = await fetchOrderData();
+      if (freshData) {
+        setOrder(freshData);
+      }
+    } catch (error) {
+      console.error("Error cancelling order:", error);
+      toast.error("Failed to Cancel", "Could not cancel the order. Please try again.");
+    } finally {
+      setIsCancelling(false);
+    }
+  };
+
+  const handleRetryPayment = async () => {
+    if (!oid || typeof oid !== 'string') {
+      toast.error("Error", "Invalid order ID");
+      return;
+    }
+
+    setIsRetryingPayment(true);
+    try {
+      // Create new PhonePe payment for the existing order
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_SERVER_URL}/phonepe/create-order`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${localStorage.getItem("Token")}`,
+          },
+          body: JSON.stringify({
+            orderId: oid,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to initiate payment");
+      }
+
+      const data = await response.json();
+      const checkoutUrl = data.data?.checkoutUrl || data.checkoutUrl;
+
+      if (!checkoutUrl) {
+        throw new Error("No checkout URL received");
+      }
+
+      // IMPORTANT: Update sessionStorage to allow redirect page to verify payment
+      sessionStorage.setItem('pendingOrderId', oid);
+      sessionStorage.setItem('pendingMachineId', order?.machineId || '');
+      sessionStorage.setItem('paymentInitiatedAt', Date.now().toString());
+
+      toast.info("Redirecting to Payment", "Please complete the payment");
+
+      // Redirect to PhonePe
+      setTimeout(() => {
+        window.location.href = checkoutUrl;
+      }, 500);
+    } catch (error) {
+      console.error("Error retrying payment:", error);
+      toast.error("Payment Failed", "Could not initiate payment. Please try again.");
+      setIsRetryingPayment(false);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -405,12 +501,30 @@ export default function OrderDetailPage() {
                     <h3 className="font-semibold mb-6">Order Journey</h3>
                     <div className="space-y-6">
                       {orderSteps.map((step, index) => {
-                        const progress = getOrderProgress(order.orderStatus);
-                        const isCompleted = index <= progress.current;
-                        const isCurrent = index === progress.current;
                         const isLast = index === orderSteps.length - 1;
-                        const isFailed = progress.failed && step.status === 'PAYMENT_FAILED';
-                        const isCancelled = progress.cancelled && step.status === 'CANCELLED';
+                        const isFailed = step.status === 'PAYMENT_FAILED';
+                        const isCancelled = step.status === 'CANCELLED';
+
+                        // For cancelled/failed orders, all steps are completed including the final status
+                        // For active orders, check if this step's status matches or comes before the current status
+                        let isCompleted = false;
+                        let isCurrent = false;
+
+                        if (isCancelled || isFailed) {
+                          // Terminal states: all steps including this one are completed
+                          isCompleted = true;
+                          isCurrent = true;
+                        } else if (order.orderStatus === 'CANCELLED' || order.orderStatus === 'PAYMENT_FAILED') {
+                          // This step is before the terminal state, so it's completed but not current
+                          isCompleted = true;
+                          isCurrent = false;
+                        } else {
+                          // Active order: check if this is the current step or before it
+                          const currentStepIndex = orderSteps.findIndex(s => s.status === order.orderStatus);
+                          isCompleted = index <= currentStepIndex;
+                          isCurrent = index === currentStepIndex;
+                        }
+
                         const StepIcon = step.icon;
 
                           return (
@@ -479,8 +593,69 @@ export default function OrderDetailPage() {
                   </Card>
                 </div>
 
-              {/* Cancelled Status Info */}
-              {order.orderStatus === 'CANCELLED' && (
+              {/* Pending Payment Action Card */}
+              {order.orderStatus === 'PENDING' && (
+                <div className="px-4 pb-4">
+                  <Card className="shadow-md bg-gradient-to-br from-yellow-50/50 to-orange-50/50 dark:from-yellow-950/20 dark:to-orange-950/20 border-yellow-200/50">
+                    <CardContent className="p-5">
+                      <div className="flex items-start gap-4">
+                        <div className="h-12 w-12 rounded-full bg-yellow-100 dark:bg-yellow-900/30 flex items-center justify-center flex-shrink-0">
+                          <Clock className="h-6 w-6 text-yellow-600 dark:text-yellow-400" />
+                        </div>
+                        <div className="flex-1">
+                          <h3 className="font-semibold mb-1">Payment Pending</h3>
+                          <p className="text-sm text-muted-foreground mb-4">
+                            Complete your payment to proceed with the order. If you don&apos;t wish to continue, you can cancel the order.
+                          </p>
+                          <div className="flex flex-col sm:flex-row gap-2">
+                            <Button
+                              size="sm"
+                              variant="default"
+                              onClick={handleRetryPayment}
+                              disabled={isRetryingPayment}
+                              className="w-full sm:w-auto bg-green-600 hover:bg-green-700"
+                            >
+                              {isRetryingPayment ? (
+                                <>
+                                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                  Processing...
+                                </>
+                              ) : (
+                                <>
+                                  <CreditCard className="h-4 w-4 mr-2" />
+                                  Complete Payment
+                                </>
+                              )}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={handleCancelOrder}
+                              disabled={isCancelling}
+                              className="w-full sm:w-auto border-red-300 text-red-700 hover:bg-red-50"
+                            >
+                              {isCancelling ? (
+                                <>
+                                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                  Cancelling...
+                                </>
+                              ) : (
+                                <>
+                                  <XCircle className="h-4 w-4 mr-2" />
+                                  Cancel Order
+                                </>
+                              )}
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
+
+              {/* Cancelled Status Info - Only show if no payment was made */}
+              {order.orderStatus === 'CANCELLED' && !order.statusHistory?.some((h: any) => h.status === 'PAID') && (
                 <div className="px-4 py-4">
                   <Card className="shadow-md border-destructive/20 bg-destructive/5">
                     <CardContent className="p-6">

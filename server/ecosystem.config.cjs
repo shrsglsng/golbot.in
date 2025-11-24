@@ -10,7 +10,7 @@ module.exports = {
       },
       env_file: '.env.development',
       watch: true,
-      ignore_watch: ['node_modules', 'logs', '.git', '*.log'],
+      ignore_watch: ['node_modules', 'logs', '.git', '*.log', 'firmware-server/logs'],
       autorestart: true,
       max_restarts: 10,
       min_uptime: '10s',

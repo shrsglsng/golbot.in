@@ -1,0 +1,10 @@
+{
+  "name": "firmware-server",
+  "version": "1.0.0",
+  "description": "Golbot Firmware API - ESP32/Firmware communication interface (managed by firmware team, integrated into main server)",
+  "type": "module",
+  "note": "This firmware API is integrated into the main server. Run 'npm run dev' from the parent server directory.",
+  "keywords": ["firmware", "api", "esp32", "golbot", "iot"],
+  "author": "",
+  "license": "ISC"
+}

@@ -29,7 +29,7 @@ interface Item {
   desc: string;
   imgUrl: string;
   price: number;
-  quantity: number;
+  puriPerPlate: number;
   gst: number;
   isAvailable?: boolean;
 }
@@ -40,6 +40,7 @@ interface ItemDialogData {
   desc: string;
   imgUrl: string;
   price: number;
+  puriPerPlate: number;
   gst: number;
   isAvailable?: boolean;
 }
@@ -55,6 +56,7 @@ export default function Items() {
     desc: "",
     imgUrl: "",
     price: 0,
+    puriPerPlate: 6,
     gst: 0,
     isAvailable: true,
   });
@@ -97,6 +99,7 @@ export default function Items() {
         desc: item.desc,
         imgUrl: item.imgUrl,
         price: item.price,
+        puriPerPlate: item.puriPerPlate || 6,
         gst: item.gst,
         isAvailable: item.isAvailable ?? true,
       });
@@ -107,6 +110,7 @@ export default function Items() {
         desc: "",
         imgUrl: "",
         price: 0,
+        puriPerPlate: 6,
         gst: 0,
         isAvailable: true,
       });
@@ -122,6 +126,7 @@ export default function Items() {
       desc: "",
       imgUrl: "",
       price: 0,
+      puriPerPlate: 6,
       gst: 0,
       isAvailable: true,
     });
@@ -173,6 +178,7 @@ export default function Items() {
           desc: item.desc,
           imgUrl: item.imgUrl,
           price: item.price,
+          puriPerPlate: item.puriPerPlate || 6,
           gst: item.gst,
           isAvailable: newAvailability,
         },
@@ -306,7 +312,7 @@ export default function Items() {
                           </span>
                         </div>
                         <p className="text-xs text-muted-foreground">
-                          GST: {item.gst}%
+                          GST: {item.gst}% • {item.puriPerPlate || 6} puris/plate
                         </p>
                       </div>
                     </div>
@@ -433,6 +439,27 @@ export default function Items() {
                     }
                   />
                 </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="puriPerPlate">Puris per Plate *</Label>
+                <Input
+                  id="puriPerPlate"
+                  type="number"
+                  step="1"
+                  min="1"
+                  placeholder="6"
+                  value={currentItem.puriPerPlate || ""}
+                  onChange={(e) =>
+                    setCurrentItem((prev) => ({
+                      ...prev,
+                      puriPerPlate: parseInt(e.target.value) || 6,
+                    }))
+                  }
+                />
+                <p className="text-xs text-muted-foreground">
+                  Number of puris consumed per plate of this item
+                </p>
               </div>
 
               <div className="flex items-center gap-2">

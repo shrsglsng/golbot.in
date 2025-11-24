@@ -6,7 +6,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.flutter_application_1"
+    namespace = "com.golbot.machine"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -20,14 +20,33 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.example.flutter_application_1"
-        // You can update the following values to match your application needs.
-        // For more information, see: https://flutter.dev/to/review-gradle-config.
+        // Base application ID (will be modified by flavors)
+        applicationId = "com.golbot.machine"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+    }
+
+    // Define product flavors for different environments
+    flavorDimensions += "environment"
+    productFlavors {
+        create("dev") {
+            dimension = "environment"
+            applicationIdSuffix = ".dev"
+            versionNameSuffix = "-dev"
+            resValue("string", "app_name", "Golbot Dev")
+        }
+        create("staging") {
+            dimension = "environment"
+            applicationIdSuffix = ".staging"
+            versionNameSuffix = "-staging"
+            resValue("string", "app_name", "Golbot Staging")
+        }
+        create("prod") {
+            dimension = "environment"
+            resValue("string", "app_name", "Golbot Machine")
+        }
     }
 
     buildTypes {

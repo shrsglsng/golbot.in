@@ -21,6 +21,8 @@ import {
   TrendingUp,
   ChevronLeft,
   ChevronRight,
+  FileSearch,
+  AlertCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useRouter } from "next/router";
@@ -63,6 +65,7 @@ export default function Orders() {
   // Filters
   const [searchQuery, setSearchQuery] = useState("");
   const [orderIdFilter, setOrderIdFilter] = useState("");
+  const [orderIdError, setOrderIdError] = useState("");
   const [phoneFilter, setPhoneFilter] = useState("");
   const [machineIdFilter, setMachineIdFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
@@ -127,13 +130,39 @@ export default function Orders() {
     }
   }
 
+  const validateOrderId = (orderId: string): boolean => {
+    if (!orderId) {
+      setOrderIdError("");
+      return true;
+    }
+
+    // MongoDB ObjectId is 24 hexadecimal characters
+    if (orderId.length !== 24) {
+      setOrderIdError("Order ID must be exactly 24 characters");
+      return false;
+    }
+
+    if (!/^[a-fA-F0-9]{24}$/.test(orderId)) {
+      setOrderIdError("Order ID must contain only hexadecimal characters (0-9, a-f)");
+      return false;
+    }
+
+    setOrderIdError("");
+    return true;
+  };
+
   const handleSearch = () => {
+    if (!validateOrderId(orderIdFilter)) {
+      toast.error("Invalid Order ID format");
+      return;
+    }
     setPage(1);
     fetchOrders();
   };
 
   const handleClearFilters = () => {
     setOrderIdFilter("");
+    setOrderIdError("");
     setPhoneFilter("");
     setMachineIdFilter("");
     setStatusFilter("ALL");
@@ -261,11 +290,21 @@ export default function Orders() {
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Order ID</label>
                   <Input
-                    placeholder="Search by order ID"
+                    placeholder="Search by order ID (24 characters)"
                     value={orderIdFilter}
-                    onChange={(e) => setOrderIdFilter(e.target.value)}
+                    onChange={(e) => {
+                      setOrderIdFilter(e.target.value);
+                      validateOrderId(e.target.value);
+                    }}
                     onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+                    className={orderIdError ? "border-red-500 focus-visible:ring-red-500" : ""}
                   />
+                  {orderIdError && (
+                    <div className="flex items-center gap-1 text-xs text-red-500">
+                      <AlertCircle className="h-3 w-3" />
+                      <span>{orderIdError}</span>
+                    </div>
+                  )}
                 </div>
 
                 <div className="space-y-2">
@@ -396,11 +435,31 @@ export default function Orders() {
                       ))
                     ) : filteredOrders.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={7} className="text-center py-12">
-                          <div className="flex flex-col items-center gap-2 text-muted-foreground">
-                            <ShoppingBag className="h-12 w-12 opacity-20" />
-                            <p className="text-lg font-medium">No orders found</p>
-                            <p className="text-sm">Try adjusting your filters or search query</p>
+                        <TableCell colSpan={7} className="text-center py-16">
+                          <div className="flex flex-col items-center gap-3 text-muted-foreground">
+                            <div className="relative">
+                              <FileSearch className="h-20 w-20 opacity-10" strokeWidth={1.5} />
+                              <ShoppingBag className="h-10 w-10 opacity-20 absolute top-5 left-5" strokeWidth={2} />
+                            </div>
+                            <div className="space-y-1">
+                              <p className="text-lg font-semibold text-foreground">No orders found</p>
+                              <p className="text-sm">
+                                {orderIdFilter ? "No order matches the provided Order ID" :
+                                 phoneFilter || machineIdFilter || statusFilter !== "ALL" || dateFilter ?
+                                 "Try adjusting your filters to find orders" :
+                                 "No orders available yet"}
+                              </p>
+                            </div>
+                            {(orderIdFilter || phoneFilter || machineIdFilter || statusFilter !== "ALL" || dateFilter) && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={handleClearFilters}
+                                className="mt-2"
+                              >
+                                Clear all filters
+                              </Button>
+                            )}
                           </div>
                         </TableCell>
                       </TableRow>

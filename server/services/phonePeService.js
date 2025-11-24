@@ -231,15 +231,70 @@ class PhonePeService {
 
     try {
       const statusResponse = await this.getOrderStatus(orderId);
-      
+
+      // DEBUG: Log the entire raw response
+      logger.info('🔍 PhonePe RAW STATUS RESPONSE', {
+        orderId,
+        fullResponse: JSON.stringify(statusResponse, null, 2),
+        hasPayload: !!statusResponse?.payload,
+        topLevelKeys: Object.keys(statusResponse || {})
+      });
+
       const payload = statusResponse?.payload || statusResponse;
       const status = payload?.status;
       const state = payload?.state;
-      
+
+      // PhonePe UAT uses 'paymentDetails' array instead of 'paymentInstrument'
+      const hasPaymentInstrument = !!payload?.paymentInstrument;
+      const hasPaymentDetails = Array.isArray(payload?.paymentDetails) && payload.paymentDetails.length > 0;
+      const hasPayment = hasPaymentInstrument || hasPaymentDetails;
+
+      // DEBUG: Log extracted values
+      logger.info('🔍 PhonePe EXTRACTED VALUES', {
+        orderId,
+        status,
+        state,
+        hasPaymentInstrument,
+        hasPaymentDetails,
+        hasPayment,
+        paymentDetailsCount: payload?.paymentDetails?.length || 0,
+        payloadKeys: Object.keys(payload || {})
+      });
+
       // PhonePe payment states: COMPLETED, FAILED, PENDING
-      const isSuccessful = status === 'PAID' || state === 'COMPLETED';
+      // Payment is successful if:
+      // 1. Production: status=PAID + state=COMPLETED + hasPaymentInstrument
+      // 2. UAT/Test: state=COMPLETED + hasPaymentDetails (status field doesn't exist in UAT)
+      const isSuccessful = state === 'COMPLETED' && (
+        (status === 'PAID' && hasPaymentInstrument) || // Production
+        (!status && hasPaymentDetails) || // UAT (no status field, uses paymentDetails)
+        status === 'UNKNOWN' // Fallback for other test scenarios
+      );
       const isFailed = status === 'FAILED' || state === 'FAILED';
       
+      // Extract payment method from either Production or UAT format
+      let paymentMethod = payload?.paymentInstrument?.type;
+      let paymentInfo = {
+        type: payload?.paymentInstrument?.type,
+        upi: payload?.paymentInstrument?.upi,
+        card: payload?.paymentInstrument?.card
+      };
+
+      // UAT format: extract from paymentDetails array
+      if (!paymentMethod && hasPaymentDetails) {
+        const firstPayment = payload.paymentDetails[0];
+        paymentMethod = firstPayment?.paymentMode;
+        const firstInstrument = firstPayment?.splitInstruments?.[0];
+
+        paymentInfo = {
+          type: firstPayment?.paymentMode,
+          transactionId: firstPayment?.transactionId,
+          upi: firstInstrument?.rail?.vpa,
+          bankId: firstInstrument?.instrument?.bankId,
+          accountType: firstInstrument?.instrument?.accountType
+        };
+      }
+
       const result = {
         orderId,
         success: isSuccessful,
@@ -247,23 +302,24 @@ class PhonePeService {
         pending: !isSuccessful && !isFailed,
         status,
         state,
-        transactionId: payload?.merchantTransactionId || payload?.transactionId,
+        transactionId: payload?.merchantTransactionId || payload?.transactionId || payload?.paymentDetails?.[0]?.transactionId,
         amount: payload?.amount,
         currency: payload?.currency || this.config.currency,
-        paymentMethod: payload?.paymentInstrument?.type,
-        paymentDetails: {
-          type: payload?.paymentInstrument?.type,
-          upi: payload?.paymentInstrument?.upi,
-          card: payload?.paymentInstrument?.card
-        },
+        paymentMethod,
+        paymentDetails: paymentInfo,
         rawResponse: payload
       };
 
       logger.info('PhonePe payment verification completed', {
         orderId,
         success: result.success,
+        failed: result.failed,
+        pending: result.pending,
         status: result.status,
-        state: result.state
+        state: result.state,
+        hasPaymentInstrument,
+        hasPaymentDetails,
+        paymentMethod: result.paymentMethod
       });
 
       return result;

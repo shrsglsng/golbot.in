@@ -31,7 +31,7 @@ class Order {
     sId = json['_id'];
     uid = json['uid'];
     machineId = json['machineId'];
-    ostatus = json['ostatus'];
+    ostatus = json['orderStatus'] ?? json['ostatus']; // Server sends 'orderStatus'
     orderOtp = json['orderOtp'];
     orderCounter = json['orderCounter'] ?? 0;
     createdAt = json['createdAt'];

@@ -19,9 +19,12 @@ const machineSchema = new mongoose.Schema({
   },
   mstatus: {
     type: String,
-    enum: ["CONNECTED", "DISCONNECTED", "PREPARING", "READY_FOR_PICKUP"],
+    enum: ["CONNECTED", "DISCONNECTED", "OTP_VERIFIED", "PREPARING", "READY_FOR_PICKUP"],
     default: "DISCONNECTED",
   },
+  // Optimistic locking for concurrent machine status updates
+  statusVersion: { type: Number, default: 0 },
+  currentOrderId: { type: mongoose.Schema.Types.ObjectId, ref: 'Order', default: null },
   isActive: { type: Boolean, default: true },
   location: String,
   password: String,
@@ -44,6 +47,19 @@ const machineSchema = new mongoose.Schema({
   }],
 
   revokedTokens: [{ type: String }],
+
+  // Puri quantity management
+  puriQuantity: { type: Number, default: 0, min: 0 },
+  lowQuantityThreshold: { type: Number, default: 30, min: 0 }, // Alert when puris fall below this
+
+  // Firmware management
+  lastHeartbeatAt: Date, // Last heartbeat received from firmware
+  firmwareVersion: String, // e.g., "1.0.0" or "APK_MOCK"
+  firmwareMode: { // Type of firmware/client
+    type: String,
+    enum: ["HARDWARE", "APK_MOCK", "UNKNOWN"],
+    default: "UNKNOWN"
+  },
 }, { timestamps: true });
 
 machineSchema.pre("save", async function () {

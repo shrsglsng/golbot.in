@@ -32,7 +32,7 @@ function OrderCard({ order }: OrderCardProps) {
     PENDING: { icon: Clock, color: "text-gray-700", bg: "bg-gray-100", badge: "secondary", label: "Pending Payment" },
     PAYMENT_FAILED: { icon: XCircle, color: "text-red-700", bg: "bg-red-100", badge: "destructive", label: "Payment Failed" },
     PAID: { icon: CheckCircle2, color: "text-blue-700", bg: "bg-blue-100", badge: "default", label: "Payment Confirmed" },
-    OTP_VERIFIED: { icon: Package, color: "text-indigo-700", bg: "bg-indigo-100", badge: "default", label: "Ready to Prepare" },
+    OTP_VERIFIED: { icon: Package, color: "text-indigo-700", bg: "bg-indigo-100", badge: "default", label: "OTP Verified" },
     PREPARING: { icon: Loader2, color: "text-orange-700", bg: "bg-orange-100", badge: "default", label: "Preparing" },
     READY_FOR_PICKUP: { icon: Package, color: "text-green-700", bg: "bg-green-100", badge: "default", label: "Ready for Pickup" },
     COMPLETED: { icon: CheckCircle2, color: "text-green-700", bg: "bg-green-100", badge: "default", label: "Completed" },

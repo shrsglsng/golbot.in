@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import { useSelector, useDispatch } from "react-redux";
 import { selectCart, updateCart } from "../../redux/cartSlice";
-import { placeOrder } from "../../services/order";
+import { placeOrder, getActiveOrder } from "../../services/order";
 import { updateOrder } from "../../redux/orderSlice";
 import { GetServerSideProps } from "next/types";
 import Navbar from "../../shared/navbar";
@@ -19,8 +19,11 @@ import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import MachineBanner from "@/components/MachineBanner";
+import ActiveOrderBanner from "@/components/ActiveOrderBanner";
+import { InsufficientStockDialog } from "@/components/InsufficientStockDialog";
 import { getMachineById, MachineInfo } from "../../services/machine";
 import { saveMachineId, isAuthenticated } from "../../utils/machineStorage";
+import { OrderModel } from "../../models/orderModel";
 
 type ExtendedItemModel = BaseItemModel & { quantity: number };
 
@@ -35,6 +38,13 @@ function CheckoutPage() {
   const [amount, setAmount] = useState({ price: 0, gst: 0, total: 0 });
   const [machineInfo, setMachineInfo] = useState<MachineInfo | null>(null);
   const [checkingAuth, setCheckingAuth] = useState(true);
+  const [activeOrder, setActiveOrder] = useState<OrderModel | null>(null);
+  const [checkingActiveOrder, setCheckingActiveOrder] = useState(true);
+  const [stockError, setStockError] = useState<{
+    needed: number;
+    available: number;
+    itemName?: string;
+  } | null>(null);
 
   // Check authentication and save MID
   useEffect(() => {
@@ -53,6 +63,26 @@ function CheckoutPage() {
     }
   }, [mid, router]);
 
+  // Check for active orders
+  useEffect(() => {
+    if (!checkingAuth && isAuthenticated()) {
+      getActiveOrder()
+        .then((result) => {
+          if (result && result.hasActiveOrder && result.activeOrder) {
+            setActiveOrder(result.activeOrder);
+          }
+        })
+        .catch((error) => {
+          console.error("Error checking active order:", error);
+        })
+        .finally(() => {
+          setCheckingActiveOrder(false);
+        });
+    } else {
+      setCheckingActiveOrder(false);
+    }
+  }, [checkingAuth]);
+
   // Fetch machine info
   useEffect(() => {
     if (mid && typeof mid === "string" && !checkingAuth) {
@@ -65,6 +95,15 @@ function CheckoutPage() {
   }, [mid, checkingAuth]);
 
   const handleConfirmBtnClick = async () => {
+    // Block if there's an active order
+    if (activeOrder) {
+      toast.error(
+        "Active Order Exists",
+        "Please complete or cancel your active order before placing a new one."
+      );
+      return;
+    }
+
     setIsConBtnLoading(true);
 
     try {
@@ -194,6 +233,8 @@ function CheckoutPage() {
       // Store order details for return handling
       sessionStorage.setItem('pendingOrderId', orderId);
       sessionStorage.setItem('pendingMachineId', mid?.toString() || '');
+      // Store payment initiation timestamp for expiry validation (30 min expiry)
+      sessionStorage.setItem('paymentInitiatedAt', Date.now().toString());
 
       // Detect if user is on mobile device
       const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
@@ -315,6 +356,37 @@ function CheckoutPage() {
         return;
       }
 
+      // Handle insufficient stock errors with dialog
+      if (err.message?.includes("Insufficient puris")) {
+        // Try to extract stock info from error
+        const errorData = err.response?.data?.error?.data;
+        const purisNeeded = errorData?.purisNeeded;
+        const purisAvailable = errorData?.purisAvailable;
+
+        // If we have the data, show the dialog. Otherwise extract from message.
+        if (purisNeeded !== undefined && purisAvailable !== undefined) {
+          setStockError({
+            needed: purisNeeded,
+            available: purisAvailable,
+            itemName: "puris"
+          });
+        } else {
+          // Fallback: try to parse from error message
+          const match = err.message.match(/needs (\d+) puris.*only (\d+) are available/);
+          if (match) {
+            setStockError({
+              needed: parseInt(match[1]),
+              available: parseInt(match[2]),
+              itemName: "puris"
+            });
+          } else {
+            // If parsing fails, show a generic insufficient stock error
+            toast.error("Insufficient Stock", err.message);
+          }
+        }
+        return;
+      }
+
       // Show specific error message for machine issues
       if (err.message?.includes("offline") || err.message?.includes("inactive")) {
         toast.error("Machine Unavailable", err.message);
@@ -379,6 +451,12 @@ function CheckoutPage() {
         <div className="w-full flex justify-center">
           <div className="w-full md:w-1/2 lg:w-1/4 min-h-screen pb-32">
             <div className="pt-[72px]">
+              {/* Active Order Banner */}
+              {activeOrder && (
+                <div className="px-4 pt-4 pb-2">
+                  <ActiveOrderBanner activeOrder={activeOrder} />
+                </div>
+              )}
               {/* Header */}
               <div className="bg-background sticky top-[72px] z-10 border-b shadow-sm">
                 <div className="px-4 py-4">
@@ -542,13 +620,19 @@ function CheckoutPage() {
                   <Button
                     onClick={handleConfirmBtnClick}
                     loading={isConBtnLoading}
-                    disabled={amount.total <= 0 || isConBtnLoading}
+                    disabled={amount.total <= 0 || isConBtnLoading || !!activeOrder}
                     className="w-full h-14 text-base font-bold shadow-lg hover:shadow-xl transition-all"
                     size="lg"
                   >
                     <div className="flex items-center justify-between w-full">
-                      <span>{isConBtnLoading ? "Processing Payment..." : "Proceed to Pay"}</span>
-                      {!isConBtnLoading && <span className="text-lg">→</span>}
+                      <span>
+                        {isConBtnLoading
+                          ? "Processing Payment..."
+                          : activeOrder
+                          ? "Complete Active Order First"
+                          : "Proceed to Pay"}
+                      </span>
+                      {!isConBtnLoading && !activeOrder && <span className="text-lg">→</span>}
                     </div>
                   </Button>
                 </div>
@@ -556,6 +640,18 @@ function CheckoutPage() {
             )}
           </div>
         </div>
+
+        {/* Insufficient Stock Dialog */}
+        <InsufficientStockDialog
+          open={!!stockError}
+          onOpenChange={(open) => {
+            if (!open) setStockError(null);
+          }}
+          itemName={stockError?.itemName}
+          needed={stockError?.needed || 0}
+          available={stockError?.available || 0}
+          onRetry={handleConfirmBtnClick}
+        />
       </div>
     </>
   );

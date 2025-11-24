@@ -51,6 +51,7 @@ export default function Dashboard() {
 
       const [ordersRes, machinesRes, itemsRes, adminsRes] = await Promise.all([
         axios.get(`${baseUrl}/order/admin/all`, {
+          params: { limit: 1000 }, // Fetch up to 1000 orders for dashboard stats
           headers: { Authorization: `Bearer ${localStorage.getItem("Token")}` },
         }),
         axios.get(`${baseUrl}/admin/machines`, {
@@ -63,11 +64,13 @@ export default function Dashboard() {
       ]);
 
       const orders = ordersRes.data?.result?.orders || [];
+      const totalOrdersCount = ordersRes.data?.result?.totalOrders || 0;
       const machines = machinesRes.data?.data?.machines || [];
       const items = itemsRes.data?.data?.items || itemsRes.data?.items || [];
       const admins = adminsRes.data?.data?.admins || [];
 
-      console.log("Dashboard Debug - Total orders:", orders.length);
+      console.log("Dashboard Debug - Total orders from API:", totalOrdersCount);
+      console.log("Dashboard Debug - Orders in current page:", orders.length);
       console.log("Dashboard Debug - Sample order:", orders[0]);
 
       // Calculate date ranges
@@ -171,7 +174,7 @@ export default function Dashboard() {
       ];
 
       setStats({
-        totalOrders: orders.length,
+        totalOrders: totalOrdersCount, // Use total count from API instead of array length
         totalMachines: machines.length,
         totalItems: items.length,
         totalAdmins: admins.length,

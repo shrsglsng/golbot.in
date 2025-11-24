@@ -27,7 +27,6 @@ export const getAllItems = async (req, res) => {
       imgUrl: item.imgUrl,
       price: item.price,
       gst: item.gst,
-      quantity: item.qtyLeft || 0,
       isAvailable: item.isAvailable
     }));
 

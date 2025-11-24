@@ -14,7 +14,10 @@ import { Stack } from "@/components/layout/Stack"
 import { Card, CardContent } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import MachineBanner from "@/components/MachineBanner"
+import ActiveOrderBanner from "@/components/ActiveOrderBanner"
 import { saveMachineId, isAuthenticated } from "../../utils/machineStorage"
+import { getActiveOrder } from "../../services/order"
+import { OrderModel } from "../../models/orderModel"
 import { Loader2, Search, ShoppingCart, ChevronRight, Minus, Plus } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -55,6 +58,7 @@ export default function Home({ allItems, machineData }: Readonly<{ allItems: Ext
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedItem, setSelectedItem] = useState<ExtendedItemModel | null>(null)
   const [isMobile, setIsMobile] = useState(false)
+  const [activeOrder, setActiveOrder] = useState<OrderModel | null>(null)
   const initializedMachineRef = useRef<string | null>(null)
 
   // Check authentication and save MID
@@ -73,6 +77,61 @@ export default function Home({ allItems, machineData }: Readonly<{ allItems: Ext
       setCheckingAuth(false);
     }
   }, [mid, router]);
+
+  // Check for active orders
+  const checkActiveOrder = () => {
+    if (isAuthenticated()) {
+      getActiveOrder()
+        .then((result) => {
+          if (result && result.hasActiveOrder && result.activeOrder) {
+            setActiveOrder(result.activeOrder);
+          } else {
+            setActiveOrder(null);
+          }
+        })
+        .catch((error) => {
+          console.error("Error checking active order:", error);
+        });
+    }
+  };
+
+  useEffect(() => {
+    if (!checkingAuth) {
+      checkActiveOrder();
+    }
+  }, [checkingAuth]);
+
+  // Re-check active orders when page becomes visible (e.g., after browser back)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && !checkingAuth) {
+        checkActiveOrder();
+      }
+    };
+
+    const handleFocus = () => {
+      if (!checkingAuth) {
+        checkActiveOrder();
+      }
+    };
+
+    // Listen for page visibility changes
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleFocus);
+
+    // Handle browser back/forward navigation
+    window.addEventListener('pageshow', (event) => {
+      // Check if page was restored from bfcache
+      if (event.persisted && !checkingAuth) {
+        checkActiveOrder();
+      }
+    });
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, [checkingAuth]);
 
   // Initialize cart with allItems, then restore saved cart from localStorage
   useEffect(() => {
@@ -232,6 +291,13 @@ export default function Home({ allItems, machineData }: Readonly<{ allItems: Ext
         <div className="w-full flex justify-center">
           <div className="w-full md:w-1/2 lg:w-1/4 min-h-screen pb-32">
             <div className="pt-[72px]">
+              {/* Active Order Banner */}
+              {activeOrder && (
+                <div className="px-4 pt-4 pb-2">
+                  <ActiveOrderBanner activeOrder={activeOrder} />
+                </div>
+              )}
+
               {/* Search and Header Section */}
               <div className="bg-background sticky top-[72px] z-[43] border-b shadow-sm">
                 <div className="p-4 space-y-3">

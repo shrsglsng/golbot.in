@@ -1,9 +1,6 @@
-// user_web/services/auth.ts - UPDATED WITH DEMO MODE
-
 import axios from "axios";
 import { UserModel } from "../models/userModel";
 import { updateToken } from "../redux/userSlice";
-import { isDemoMode, getDemoCredentials } from "../config/demoConfig";
 
 /**
  * Send OTP to the user's phone number
@@ -15,7 +12,7 @@ export async function sendOtp(phone: string): Promise<boolean> {
 
     const url = `${serverUrl}/auth/send-otp`;
     const res = await axios.post(url, { phone });
-    
+
     return res.status === 200;
   } catch (error) {
     console.error("Failed to send OTP:", error);
@@ -32,6 +29,7 @@ export async function verifyOtp(
   dispatch: any
 ): Promise<UserModel | undefined> {
   let user: UserModel | undefined;
+
   const serverUrl = process.env.NEXT_PUBLIC_SERVER_URL;
   if (!serverUrl) throw new Error("Server URL not set");
 
@@ -60,13 +58,4 @@ export async function verifyOtp(
   }
 
   return user;
-}
-
-/**
- * Check if user is using demo phone number (useful for demo mode specific logic)
- */
-export function isDemoPhoneNumber(phone: string): boolean {
-  if (!isDemoMode()) return false;
-  const demoPhone = getDemoCredentials().phone;
-  return phone === demoPhone;
 }

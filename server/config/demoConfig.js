@@ -4,15 +4,17 @@ console.log('🎪 [DemoConfig Loading] process.env.DEMO_MODE:', process.env.DEMO
 console.log('🎪 [DemoConfig Loading] process.env.DEMO_PHONE:', process.env.DEMO_PHONE);
 console.log('🎪 [DemoConfig Loading] process.env.DEMO_OTP:', process.env.DEMO_OTP);
 
-const demoConfig = {
+// Don't cache the config - read from process.env each time
+const getDemoConfig = () => ({
   enabled: process.env.DEMO_MODE === 'true',
   phone: process.env.DEMO_PHONE || '9876543210',
   otp: process.env.DEMO_OTP || '123456',
-};
+});
 
-console.log('🎪 [DemoConfig Loaded] enabled:', demoConfig.enabled);
-console.log('🎪 [DemoConfig Loaded] phone:', demoConfig.phone);
-console.log('🎪 [DemoConfig Loaded] otp:', demoConfig.otp);
+const initialConfig = getDemoConfig();
+console.log('🎪 [DemoConfig Loaded] enabled:', initialConfig.enabled);
+console.log('🎪 [DemoConfig Loaded] phone:', initialConfig.phone);
+console.log('🎪 [DemoConfig Loaded] otp:', initialConfig.otp);
 
 const normalizePhone = (phone) => {
   if (!phone) return '';
@@ -25,10 +27,12 @@ const getLast10Digits = (phone) => {
 };
 
 export const isDemoMode = () => {
+  const demoConfig = getDemoConfig();
   return demoConfig.enabled;
 };
 
 export const isDemoCredentials = (phone, otp) => {
+  const demoConfig = getDemoConfig();
   console.log('🎪 [isDemoCredentials] Called with phone:', phone, 'otp:', otp ? '***' : 'undefined');
   console.log('🎪 [isDemoCredentials] demoConfig.enabled:', demoConfig.enabled);
   
@@ -55,20 +59,19 @@ export const isDemoCredentials = (phone, otp) => {
   return result;
 };
 
-export const getDemoConfig = () => {
-  return { ...demoConfig };
-};
+export { getDemoConfig };
 
-if (demoConfig.enabled) {
+const finalConfig = getDemoConfig();
+if (finalConfig.enabled) {
   console.log('🎪 ═══════════════════════════════════════════════════');
   console.log('🎪 DEMO MODE ACTIVE');
   console.log('🎪 ═══════════════════════════════════════════════════');
-  console.log(`📱 Demo Phone: ${demoConfig.phone}`);
-  console.log(`🔑 Demo OTP: ${demoConfig.otp}`);
+  console.log(`📱 Demo Phone: ${finalConfig.phone}`);
+  console.log(`🔑 Demo OTP: ${finalConfig.otp}`);
   console.log('⚠️  Remember to disable demo mode in production!');
   console.log('🎪 ═══════════════════════════════════════════════════');
 } else {
   console.log('❌ Demo mode is DISABLED - check DEMO_MODE=true in .env');
 }
 
-export default demoConfig;
+export default getDemoConfig;

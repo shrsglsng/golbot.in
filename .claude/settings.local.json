@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(findstr:*)",
+      "mcp__shadcn__search_items_in_registries",
+      "Bash(npm install:*)",
+      "Bash(node scripts/checkMachineData.js:*)",
+      "Bash(node scripts/checkQRTokens.js:*)",
+      "Bash(npm run build:*)",
+      "Bash(ssh:*)",
+      "Bash(dir /B \"C:\\Rakesh\\Development\\golbot.in\\server\\utils\")",
+      "Bash(dir /B \"C:\\Rakesh\\Development\\golbot.in\\flutter_application_1\\lib\")",
+      "Bash(mkdir:*)",
+      "Bash(dir /B \"C:\\Rakesh\\Development\\golbot.in\\server\\firmware-server\")",
+      "mcp__shadcn__get_project_registries",
+      "mcp__shadcn__get_add_command_for_items",
+      "Bash(npx shadcn@latest add:*)",
+      "Bash(nul)",
+      "Bash(git diff:*)",
+      "Bash(dir /B \"C:\\Rakesh\\Development\\golbot.in\\flutter_application_1\\android\\app\")",
+      "WebFetch(domain:developer.phonepe.com)"
+    ],
+    "deny": [],
+    "ask": []
+  },
+  "enableAllProjectMcpServers": true
+}

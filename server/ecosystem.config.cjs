@@ -45,9 +45,10 @@ module.exports = {
       instances: 'max',
       exec_mode: 'cluster',
       env: {
-        NODE_ENV: 'production'
+        NODE_ENV: 'production',
+        PORT: '5001'
       },
-      env_file: '.env.production',
+      env_file: '.env.prod',
       watch: false,
       autorestart: true,
       max_restarts: 10,

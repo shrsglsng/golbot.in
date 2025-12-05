@@ -9,11 +9,11 @@ import morgan from "morgan";
 import mongoSanitize from "express-mongo-sanitize";
 import helmet from "helmet";
 
-import "./config/demoConfig.js";
-
 // Import utilities
 import logger from "./utils/logger.js";
 import { responseMiddleware } from "./utils/response.js";
+
+import "./config/demoConfig.js";
 
 // routes
 import AuthRoute from "./routes/authRoute.js";

@@ -23,6 +23,7 @@
     "env:prod": "node scripts/env-setup.js prod",
     "env:validate": "node scripts/validate-env.js",
     "admin:create": "node scripts/create-admin.js",
+    "admin:create:prod": "node -r dotenv/config scripts/create-admin.js dotenv_config_path=.env.prod",
     "admin:list": "node scripts/enable-admin.js",
     "seed:items": "node scripts/seedItems.js",
     "seed:items:local": "node -r dotenv/config scripts/seedItems.js dotenv_config_path=.env.local",

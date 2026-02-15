@@ -414,9 +414,8 @@ export const completeOrder = async (req, res) => {
     order.actualCompletionTime = new Date();
     await order.save();
 
-    // Update machine status back to CONNECTED (idle) and clear current order
+    // Clear current order assignment (status is manually controlled by admin)
     await Machine.findByIdAndUpdate(machine._id, {
-      mstatus: "CONNECTED",
       currentOrderId: null, // Clear current order assignment
       lastPingedAt: new Date(),
       $inc: { statusVersion: 1 } // Increment version for consistency
@@ -528,11 +527,10 @@ export const cancelOrder = async (req, res) => {
       );
       await orderForUpdate.save({ session });
 
-      // Update machine status back to CONNECTED and clear current order
+      // Clear current order assignment (status is manually controlled by admin)
       await Machine.findByIdAndUpdate(
         machine._id,
         {
-          mstatus: "CONNECTED",
           currentOrderId: null, // Clear current order assignment
           lastPingedAt: new Date(),
           $inc: { statusVersion: 1 } // Increment version for consistency
@@ -654,10 +652,10 @@ export const sendHeartbeat = async (req, res) => {
       updates.firmwareVersion = firmwareVersion;
     }
 
-    // If status provided and machine is not preparing/ready, update it
-    if (status && !['PREPARING', 'READY_FOR_PICKUP'].includes(machine.mstatus)) {
-      updates.mstatus = status;
-    }
+    // Status is now manually controlled by admin only - removed automatic updates
+    // if (status && !['PREPARING', 'READY_FOR_PICKUP'].includes(machine.mstatus)) {
+    //   updates.mstatus = status;
+    // }
 
     await Machine.findByIdAndUpdate(machine._id, updates);
 

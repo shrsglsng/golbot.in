@@ -102,7 +102,7 @@ class _AuthCheckScreenState extends State<AuthCheckScreen> {
 
       // Query backend to check if machine has an active order
       print('[AuthCheck] Checking backend for active order on machine: $mid');
-      final activeOrder = await _checkBackendForActiveOrder(mid, token);
+      final activeOrderData = await _checkBackendForActiveOrder(mid, token);
 
       if (activeOrderData != null) {
         final order = Order.fromJson(activeOrderData);

@@ -9,7 +9,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'services/firmwareService.dart';
 import 'services/storageService.dart';
-import 'PreparingOrderScreen.dart';
+import 'preparingOrderScreen.dart';
 
 class HomeScreen extends StatefulWidget {
   HomeScreen({super.key});

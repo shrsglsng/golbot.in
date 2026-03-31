@@ -70,6 +70,14 @@ class _PreparingOrderScreenState extends State<PreparingOrderScreen> {
       // Set initial status from order
       setState(() {
         orderStatus = _order!.ostatus ?? "OTP_VERIFIED";
+        
+        // Sync UI booleans with the restored order status
+        if (orderStatus == "READY_FOR_PICKUP") {
+          readyForPickup = true;
+        } else if (orderStatus == "COMPLETED") {
+          orderCompleted = true;
+        }
+        
         _isLoading = false;
       });
 

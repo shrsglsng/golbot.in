@@ -68,22 +68,32 @@ class _LoginScreenState extends State<LoginScreen> {
 
         if (serverStatus != null && serverStatus['currentOrder'] != null) {
           final currentOrder = serverStatus['currentOrder'];
-          print(
-              '[Login] Server confirms active order: ${currentOrder['orderId']}');
+          final latestStatus =
+              currentOrder['orderStatus'] ?? currentOrder['status'];
 
-          // Navigate to PreparingOrderScreen to resume
-          if (mounted) {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(
-                builder: (context) => PreparingOrderScreen(
-                  orderOtp: currentOrder['orderOtp'],
-                  isAutoMode: true,
+          print(
+              '[Login] Server confirms order: ${currentOrder['orderId']}, status: $latestStatus');
+
+          // ONLY navigate to PreparingOrderScreen if the order is Not already completed or cancelled
+          if (latestStatus != 'COMPLETED' && latestStatus != 'CANCELLED') {
+            if (mounted) {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => PreparingOrderScreen(
+                    orderOtp: currentOrder['orderOtp'],
+                    isAutoMode: true,
+                  ),
                 ),
-              ),
-            );
+              );
+            }
+            return;
+          } else {
+            // No active order on server (already terminal), clear local storage
+            print(
+                '[Login] Order already terminal ($latestStatus), clearing local storage');
+            await _storageService.clearCurrentOrder();
           }
-          return;
         } else {
           // No active order on server, clear local storage
           print('[Login] No active order on server, clearing local storage');

@@ -27,7 +27,7 @@ class Order {
     itemQty =
         json['itemQty'] != null ? new ItemQty.fromJson(json['itemQty']) : null;
     amount =
-        json['amount'] != null ? new Amount.fromJson(json['amount']) : null;
+        json['amount'] != null ? Amount.fromJson(json['amount']) : null;
     sId = json['_id'];
     uid = json['uid'];
     machineId = json['machineId'];

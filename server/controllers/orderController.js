@@ -1299,3 +1299,122 @@ export const cancelOrder = async (req, res) => {
     throw error;
   }
 };
+
+// ----------------------------------------------------------------------------
+// Admin Cancel order
+// ----------------------------------------------------------------------------
+export const adminCancelOrder = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+
+    logger.info('Admin order cancellation initiated', {
+      orderId,
+      adminId: req.user?.uid
+    });
+
+    if (!mongoose.Types.ObjectId.isValid(orderId)) {
+      throw new ValidationError('Invalid order ID format');
+    }
+
+    const order = await DatabaseUtil.findOne(Order, {
+      _id: orderId
+    }, {
+      throwIfNotFound: true
+    });
+
+    const cancellableStatuses = ['PENDING', 'PAID', 'OTP_VERIFIED', 'PREPARING', 'READY_FOR_PICKUP'];
+    if (!cancellableStatuses.includes(order.orderStatus)) {
+      throw new BadRequestError(
+        `Cannot cancel order with status ${order.orderStatus}.`
+      );
+    }
+
+    await DatabaseUtil.transaction(async (session) => {
+      // Refund puris if order was in PREPARING or READY_FOR_PICKUP and attached to a machine
+      if (['PREPARING', 'READY_FOR_PICKUP'].includes(order.orderStatus) && order.machineId) {
+        // Use native Mongoose find to correctly attach session during transaction
+        const orderItems = await OrderItem.find({ orderId: order._id }).session(session);
+        const items = orderItems.map(item => ({
+          id: item.itemId,
+          quantity: item.qty
+        }));
+
+        const { totalPuris } = await calculatePurisNeeded(items);
+
+        logger.info('Refunding puris due to admin order cancellation', {
+          orderId: order._id,
+          machineId: order.machineId,
+          totalPuris
+        });
+
+        const machineForUpdate = await Machine.findById(order.machineId).session(session);
+        if (machineForUpdate) {
+          machineForUpdate.puriQuantity += totalPuris;
+          await machineForUpdate.save({ session });
+
+          logger.info('Puris refunded to machine', {
+            machineId: machineForUpdate.mid,
+            refunded: totalPuris,
+            newQuantity: machineForUpdate.puriQuantity,
+            orderId: order._id,
+            source: 'admin_api',
+            reason: 'order_cancelled_by_admin'
+          });
+        }
+      }
+
+      // Update order status
+      const orderToUpdate = await Order.findById(order._id).session(session);
+      orderToUpdate.orderCompleted = true; // Set completed flag BEFORE saving status to avoid double-save VersionError
+      
+      await orderToUpdate.updateStatus(
+        "CANCELLED",
+        "admin",
+        "Cancelled from admin dashboard",
+        {
+          cancelledBy: "admin",
+          adminId: req.user?.uid,
+          cancelledAt: new Date(),
+          previousStatus: order.orderStatus
+        }
+      );
+
+      // Update machine status if connected
+      if (order.machineId) {
+        await Machine.findByIdAndUpdate(
+          order.machineId,
+          {
+            mstatus: "CONNECTED",
+            currentOrderId: null,
+            lastPingedAt: new Date(),
+            lastCancelledOrderAt: new Date(),
+            $inc: { statusVersion: 1 } 
+          },
+          { session }
+        );
+      }
+    });
+
+    logger.info('Order cancelled successfully by admin', {
+      orderId: order._id,
+      previousStatus: order.orderStatus
+    });
+
+    return ApiResponse.success(res, {
+      order: {
+        oid: order._id,
+        orderStatus: 'CANCELLED',
+        message: 'Order cancelled successfully'
+      }
+    }, "Order cancelled successfully");
+
+
+  } catch (error) {
+    logger.error('Admin cancel order failed', {
+      error: error.message,
+      adminId: req.user?.uid,
+      orderId: req.params?.orderId
+    });
+    throw error;
+  }
+};

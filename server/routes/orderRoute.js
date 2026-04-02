@@ -11,7 +11,8 @@ import {
   getAllOrders,
   getUserOrderHistory,
   getOrderById,
-  cancelOrder
+  cancelOrder,
+  adminCancelOrder
 } from "../controllers/orderController.js";
 import auth from "../middlewares/auth.js";
 import admin from "../middlewares/admin.js";
@@ -40,5 +41,6 @@ router.post("/report", auth, uploadImage.single("image"), createReportIssue);
 
 // Admin order view
 router.get("/admin/all", admin, getAllOrders);
+router.patch("/admin/:orderId/cancel", admin, adminCancelOrder);
 
 export default router;

@@ -102,13 +102,24 @@ class _AuthCheckScreenState extends State<AuthCheckScreen> {
 
       // Query backend to check if machine has an active order
       print('[AuthCheck] Checking backend for active order on machine: $mid');
-      final activeOrder = await _checkBackendForActiveOrder(mid, token!);
+      final activeOrderData = await _checkBackendForActiveOrder(mid, token);
 
-      if (activeOrder != null) {
-        // Backend has active order → navigate to PreparingOrderScreen
-        print('[AuthCheck] Found active order from backend: ${activeOrder['_id']}');
-        _navigateToPreparing(Order.fromJson(activeOrder));
-        return;
+      if (activeOrderData != null) {
+        final order = Order.fromJson(activeOrderData);
+        final status = order.ostatus;
+
+        print(
+            '[AuthCheck] Found active order on server: ${order.sId}, status: $status');
+
+        // ONLY navigate to PreparingOrderScreen if the order is NOT already completed or cancelled
+        if (status != 'COMPLETED' && status != 'CANCELLED') {
+          _navigateToPreparing(order);
+          return;
+        } else {
+          // It's a terminal state, clear local knowledge as the user doesn't need to resume
+          print('[AuthCheck] Order already terminal ($status), clearing storage');
+          await _storageService.clearCurrentOrder();
+        }
       }
 
       // Logged in, no active order → go to HomeScreen
@@ -134,8 +145,8 @@ class _AuthCheckScreenState extends State<AuthCheckScreen> {
         return null;
       }
 
-      // Call the same endpoint firmware uses to check for orders
-      final url = Uri.parse('${FIRMWARE_API_URL}orders/next');
+      // Call the firmware API to get machine status (source of truth for currently active order)
+      final url = Uri.parse('${FIRMWARE_API_URL}machine/status?mid=$mid');
       final response = await http.get(
         url,
         headers: {
@@ -151,9 +162,15 @@ class _AuthCheckScreenState extends State<AuthCheckScreen> {
         final data = jsonDecode(response.body);
         print('[AuthCheck] Backend data: ${response.body}');
 
-        if (data['success'] == true && data['data'] != null) {
-          return data['data'];
+        if (data['success'] == true &&
+            data['data'] != null &&
+            data['data']['currentOrder'] != null) {
+          return data['data']['currentOrder'];
         }
+      } else if (response.statusCode == 401 || response.statusCode == 403) {
+        // Invalid token or auth error - force login
+        print('[AuthCheck] Authentication expired or invalid');
+        _navigateToLogin();
       }
 
       return null;

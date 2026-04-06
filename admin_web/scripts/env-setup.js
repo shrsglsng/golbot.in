@@ -5,6 +5,7 @@ const environment = process.argv[2] || 'local';
 const rootDir = path.resolve(__dirname, '..');
 
 const envFiles = {
+  development:'.env.local',
   local: '.env.local',
   stage: '.env.stage',
   prod: '.env.prod'

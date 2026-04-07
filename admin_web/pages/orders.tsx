@@ -23,8 +23,20 @@ import {
   ChevronRight,
   FileSearch,
   AlertCircle,
+  Delete,
+  Trash,
+  Loader2,
+  XCircle,
 } from "lucide-react";
 import { toast } from "sonner";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { useRouter } from "next/router";
 
 interface OrderItem {
@@ -85,9 +97,35 @@ export default function Orders() {
     PWOQty: 0,
   });
 
+  const [cancelLoading, setCancelLoading] = useState(false);
+  const [showCancelDialog, setShowCancelDialog] = useState(false);
+  const [orderToCancel, setOrderToCancel] = useState<string | null>(null);
+
   useEffect(() => {
     fetchOrders();
   }, [page]);
+
+  const handleCancelOrder = async () => {
+    if (!orderToCancel) return;
+    setCancelLoading(true);
+    try {
+      const baseUrl = process.env.NEXT_PUBLIC_SERVER_URL;
+      await axios.patch(`${baseUrl}/order/admin/${orderToCancel}/cancel`, {}, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("Token")}`,
+        },
+      });
+      toast.success("Order cancelled successfully");
+      setShowCancelDialog(false);
+      setOrderToCancel(null);
+      fetchOrders();
+    } catch (e: any) {
+      console.error("Failed to cancel order:", e);
+      toast.error(e.response?.data?.message || "Failed to cancel order");
+    } finally {
+      setCancelLoading(false);
+    }
+  };
 
   async function fetchOrders() {
     setSearchLoading(true);
@@ -417,7 +455,7 @@ export default function Orders() {
                       <TableHead>Status</TableHead>
                       <TableHead>Date</TableHead>
                       <TableHead className="text-right">Amount</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
+                      <TableHead className="text-center">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -445,9 +483,9 @@ export default function Orders() {
                               <p className="text-lg font-semibold text-foreground">No orders found</p>
                               <p className="text-sm">
                                 {orderIdFilter ? "No order matches the provided Order ID" :
-                                 phoneFilter || machineIdFilter || statusFilter !== "ALL" || dateFilter ?
-                                 "Try adjusting your filters to find orders" :
-                                 "No orders available yet"}
+                                  phoneFilter || machineIdFilter || statusFilter !== "ALL" || dateFilter ?
+                                    "Try adjusting your filters to find orders" :
+                                    "No orders available yet"}
                               </p>
                             </div>
                             {(orderIdFilter || phoneFilter || machineIdFilter || statusFilter !== "ALL" || dateFilter) && (
@@ -489,18 +527,35 @@ export default function Orders() {
                               </span>
                             </div>
                           </TableCell>
-                          <TableCell className="text-right font-semibold">
+                           <TableCell className="text-right font-semibold">
                             ₹{(order.totalAmount || order.amount || 0).toLocaleString('en-IN')}
                           </TableCell>
-                          <TableCell className="text-right">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => router.push(`/orders/${order.orderId}`)}
-                            >
-                              <Eye className="h-4 w-4 mr-2" />
-                              View
-                            </Button>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8"
+                                onClick={() => router.push(`/orders/${order.orderId}`)}
+                              >
+                                <Eye className="h-4 w-4 mr-2" />
+                                View
+                              </Button>
+                              {['PENDING', 'PAID', 'OTP_VERIFIED', 'PREPARING', 'READY_FOR_PICKUP'].includes(order.orderStatus || order.ostatus || '') && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                  onClick={() => {
+                                    setOrderToCancel(order.orderId);
+                                    setShowCancelDialog(true);
+                                  }}
+                                >
+                                  <Trash className="h-4 w-4 mr-2" />
+                                  Cancel
+                                </Button>
+                              )}
+                            </div>
                           </TableCell>
                         </TableRow>
                       ))
@@ -556,6 +611,26 @@ export default function Orders() {
             </div>
           )}
         </div>
+
+        <Dialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Cancel Order</DialogTitle>
+              <DialogDescription>
+                Are you sure you want to cancel this order? This action cannot be undone.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter className="gap-2">
+              <Button variant="outline" onClick={() => setShowCancelDialog(false)} disabled={cancelLoading}>
+                No
+              </Button>
+              <Button variant="destructive" onClick={handleCancelOrder} disabled={cancelLoading}>
+                {cancelLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                Yes
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </AppLayout>
     </>
   );

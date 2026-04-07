@@ -9,6 +9,7 @@ const environment = process.argv[2] || 'local';
 const rootDir = path.resolve(__dirname, '..');
 
 const envFiles = {
+  development: '.env.local',
   local: '.env.local',
   stage: '.env.stage',
   prod: '.env.prod'
@@ -17,7 +18,7 @@ const envFiles = {
 // Validate environment argument
 if (!envFiles[environment]) {
   console.error(`Error: Invalid environment "${environment}"`);
-  console.error(`Valid environments: local, stage, prod`);
+  console.error(`Valid environments: development, local, stage, prod`);
   process.exit(1);
 }
 

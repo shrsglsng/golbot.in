@@ -416,6 +416,7 @@ export const completeOrder = async (req, res) => {
 
     // Clear current order assignment (status is manually controlled by admin)
     await Machine.findByIdAndUpdate(machine._id, {
+      mstatus: "CONNECTED",  // Reset the machine status back to Connected(idle)
       currentOrderId: null, // Clear current order assignment
       lastPingedAt: new Date(),
       $inc: { statusVersion: 1 } // Increment version for consistency
@@ -531,7 +532,8 @@ export const cancelOrder = async (req, res) => {
       await Machine.findByIdAndUpdate(
         machine._id,
         {
-          currentOrderId: null, // Clear current order assignment
+          mstatus: "CONNECTED",  // Reset the machine Status back to Connected(idle)
+           currentOrderId: null, // Clear current order assignment
           lastPingedAt: new Date(),
           $inc: { statusVersion: 1 } // Increment version for consistency
         },

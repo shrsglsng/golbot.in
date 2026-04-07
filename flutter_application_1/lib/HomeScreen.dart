@@ -9,7 +9,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'services/firmwareService.dart';
 import 'services/storageService.dart';
-import 'PreparingOrderScreen.dart';
+import 'preparingOrderScreen.dart';
 
 class HomeScreen extends StatefulWidget {
   HomeScreen({super.key});
@@ -65,23 +65,33 @@ class _HomeScreenState extends State<HomeScreen> {
 
     // DISASTER RECOVERY: Check backend for active order (source of truth)
     print('[HomeScreen] Checking backend for active order...');
-    final activeOrder = await _firmwareService.pollForNextOrder(_machineId!);
+    final machineStatus = await _firmwareService.getMachineStatus(_machineId!);
 
-    if (activeOrder != null) {
-      print('[HomeScreen] Found active order from backend: ${activeOrder['_id']}');
-      // Navigate to PreparingOrderScreen to resume order
-      if (mounted) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => PreparingOrderScreen(
-              order: Order.fromJson(activeOrder), // Pass full order object
-              isAutoMode: false, // Resume in manual mode for safety
+    if (machineStatus != null && machineStatus['currentOrder'] != null) {
+      final activeOrder = machineStatus['currentOrder'];
+      final status = activeOrder['orderStatus'] ?? activeOrder['status'];
+
+      // Resume only if order is actively preparing or verifying
+      if (status != 'COMPLETED' && status != 'CANCELLED') {
+        print(
+            '[HomeScreen] Found active order from backend: ${activeOrder['_id']}, status: $status');
+        // Navigate to PreparingOrderScreen to resume order
+        if (mounted) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => PreparingOrderScreen(
+                order: Order.fromJson(activeOrder), // Pass full order object
+                isAutoMode: false, // Resume in manual mode for safety
+              ),
             ),
-          ),
-        );
+          );
+        }
+        return; // Don't start polling, we have an active order
+      } else {
+        // Order is already finished. Ensure local storage is clear.
+        await _storageService.clearCurrentOrder();
       }
-      return; // Don't start polling, we have an active order
     }
 
     print('[HomeScreen] Firmware mode enabled for machine: $_machineId');

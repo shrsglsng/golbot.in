@@ -2,7 +2,7 @@ import express from "express";
 import bodyParser from "body-parser";
 import mongoose from "mongoose";
 import cors from "cors";
-import "dotenv/config.js"
+import "dotenv/config.js";
 import "express-async-errors";
 import morgan from "morgan";
 import mongoSanitize from "express-mongo-sanitize";

@@ -37,6 +37,17 @@ Use the root-level script to switch both server and user_web environments simult
 # Switch to development (local)
 node switch-env.js development
 
+## Troubleshooting: Invalid Environment Error
+
+**Issue:** Running a development command fails with `Error: Invalid environment "development"`
+
+**Solution:**
+The "development" environment is missing from the `envFiles` configuration. To fix this:
+
+1. Navigate to the `script` folder in both the `server` and `user_web` directories
+2. Open `env-setup.js` in each location
+3. Add "development" to the `envFiles` array if it's not already present
+
 # Switch to production
 node switch-env.js production
 ```

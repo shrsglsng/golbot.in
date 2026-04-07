@@ -39,8 +39,21 @@ function Navbar() {
       const token = localStorage.getItem("Token")
       if (token) {
         dispatch(updateToken({ token }))
-        dispatch(updateOrder({ order: await getLatestOrder() }))
-        setLoggedIn(true)
+        try{
+          const latestOrder = await getLatestOrder();
+          dispatch(updateOrder({ order: latestOrder }))
+          setLoggedIn(true);
+        } catch (error:any){
+          if(error.message === "AUTHENCTICATION_REQUIRED"){
+            localStorage.removeItem("Token");
+            setLoggedIn(false);
+            router.push('/login');
+            return
+          }
+          console.error("Failed to fetch latest order: ", error)
+          setLoggedIn(false);
+          return;
+        }
 
         // Only check order completion if user is logged in and not on main page
         if (router.query.mid && router.asPath !== `/${router.query.mid}`) {

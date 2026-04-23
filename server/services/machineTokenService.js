@@ -128,8 +128,8 @@ class MachineTokenService {
   generateQRCodeUrl(machineId, baseUrl, tokenId = null) {
     const { token, tokenId: tid } = this.generateMachineToken(machineId, tokenId);
 
-    // Construct QR URL: https://<host>/order?mt=<token>
-    const url = `${baseUrl}/order?mt=${token}`;
+    // Construct QR URL: https://<host>/auth/login?next=<machineId>
+    const url = `${baseUrl}/auth/login?next=${machineId}`;
 
     return {
       url,

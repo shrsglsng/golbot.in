@@ -109,10 +109,25 @@ export default function Login() {
         return;
       }
 
-      toast.success("OTP Verified", "Please enter machine ID to continue");
-      // NEW: Move to machine ID step instead of redirecting
-      setStep(3);
-      setOtpSent(false);
+      const nextMachineId = router.query.next ? router.query.next.toString() : null;
+
+      if (nextMachineId) {
+        // Auto-select machine from QR code
+        if (typeof window !== "undefined") {
+          sessionStorage.setItem("selectedMachineId", nextMachineId);
+        }
+        
+        toast.success("Login Successful", `Connected to machine: ${nextMachineId}`);
+        
+        const redirectPath = `/${nextMachineId}`;
+        dispatch(updateOrder({ order: await getLatestOrder() }));
+        router.replace(redirectPath);
+      } else {
+        toast.success("OTP Verified", "Please enter machine ID to continue");
+        // Move to manual machine ID step
+        setStep(3);
+        setOtpSent(false);
+      }
     }
 
     setIsLoading(false);

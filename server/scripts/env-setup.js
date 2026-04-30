@@ -33,6 +33,21 @@ if (!fs.existsSync(sourceFile)) {
 
 try {
   fs.copyFileSync(sourceFile, targetFile);
+  
+  // Post-copy domain check to ensure 'app.golbot.in' is never re-introduced
+  try {
+    let content = fs.readFileSync(targetFile, 'utf8');
+    if (content.includes('app.golbot.in')) {
+      const updatedContent = content.replace(/https?:\/\/app\.golbot\.in/g, (match) => {
+        return match.replace('app.', '');
+      });
+      fs.writeFileSync(targetFile, updatedContent);
+      console.log('✨ Domain corrected: app.golbot.in -> golbot.in');
+    }
+  } catch (err) {
+    console.error('⚠️  Warning: Domain integrity check failed');
+  }
+
   console.log(`✓ Environment set to: ${environment.toUpperCase()}`);
   console.log(`✓ Copied ${envFiles[environment]} to .env`);
 } catch (error) {

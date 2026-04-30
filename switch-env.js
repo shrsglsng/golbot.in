@@ -16,10 +16,36 @@ console.log(`\n🔄 Switching to ${environment.toUpperCase()} environment...\n`)
 
 const projects = [
   { name: 'Server', path: './server' },
-  { name: 'User Web', path: './user_web' }
+  { name: 'User Web', path: './user_web' },
+  { name: 'Admin Web', path: './admin_web' }
 ];
 
 let hasErrors = false;
+
+/**
+ * Cleanup function to ensure 'app.golbot.in' is never re-introduced
+ */
+function cleanupEnvironmentFiles() {
+  console.log('🧹 Running domain integrity check...');
+  
+  projects.forEach(project => {
+    const envPath = path.resolve(__dirname, project.path, '.env');
+    if (fs.existsSync(envPath)) {
+      try {
+        let content = fs.readFileSync(envPath, 'utf8');
+        if (content.includes('app.golbot.in')) {
+          console.log(`✨ Correcting domain in ${project.name}/.env...`);
+          const updatedContent = content.replace(/https?:\/\/app\.golbot\.in/g, (match) => {
+            return match.replace('app.', '');
+          });
+          fs.writeFileSync(envPath, updatedContent);
+        }
+      } catch (error) {
+        console.error(`⚠️  Warning: Could not check domain in ${project.name}/.env`);
+      }
+    }
+  });
+}
 
 projects.forEach(project => {
   const projectPath = path.resolve(__dirname, project.path);
@@ -49,6 +75,9 @@ projects.forEach(project => {
     hasErrors = true;
   }
 });
+
+// Run domain cleanup after all projects are switched
+cleanupEnvironmentFiles();
 
 if (hasErrors) {
   console.error('\n❌ Environment switch completed with errors.\n');

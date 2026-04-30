@@ -8,6 +8,7 @@ import { BadRequestError, ExternalServiceError } from "../utils/errors.js";
 import { Validator } from "../utils/validation.js";
 import DatabaseUtil from "../utils/database.js";
 import ApiResponse from "../utils/response.js";
+import smsService from "../services/smsService.js";
 
 // Import demo configuration
 import { isDemoMode, isDemoCredentials, getDemoConfig } from "../config/demoConfig.js";
@@ -17,7 +18,7 @@ import { isDemoMode, isDemoCredentials, getDemoConfig } from "../config/demoConf
 export const anonRegister = async (req, res) => {
   try {
     logger.info('Anonymous registration attempt');
-    
+
     const existingUser = await DatabaseUtil.findOne(User, { phone: "9999999999" });
     let user;
 
@@ -51,7 +52,7 @@ export const phoneSendOtp = async (req, res) => {
     logger.info('OTP send request received', { phone: phone?.substring(0, 6) + 'xxxx' });
 
     const validatedPhone = Validator.validatePhone(phone);
-    
+
     console.log('🎪 DEBUG: isDemoCredentials imported?', typeof isDemoCredentials);
     console.log('🎪 DEBUG: Calling isDemoCredentials with phone:', validatedPhone);
 
@@ -64,7 +65,7 @@ export const phoneSendOtp = async (req, res) => {
 
       const demoConfig = getDemoConfig();
       const otpExpiry = new Date(Date.now() + 10 * 60 * 1000);
-      
+
       await DatabaseUtil.updateOne(
         User,
         { phone: validatedPhone },
@@ -93,46 +94,29 @@ export const phoneSendOtp = async (req, res) => {
     }
 
     // NORMAL SMS OTP FLOW
-    const smsKey = process.env.SMS_SECRET_KEY;
-    if (!smsKey) {
-      logger.error('SMS service not configured - SMS_SECRET_KEY missing');
-      throw new ExternalServiceError("SMS service not configured", "2Factor");
+    const apiKey = process.env.STARTMESSAGING_API_KEY;
+    if (!apiKey) {
+      logger.error('SMS service not configured - STARTMESSAGING_API_KEY missing');
+      throw new ExternalServiceError("SMS service not configured", "StartMessaging");
     }
 
     const formattedPhone = validatedPhone.startsWith("+91") ? validatedPhone : `+91${validatedPhone}`;
-    const otpTemplateName = process.env.OTP_TEMPLATE_NAME || "OTP1";
 
-    let url;
+    // Generate a 6-digit OTP
+    const generatedOtp = Math.floor(100000 + Math.random() * 900000).toString();
+    const sessionId = crypto.randomUUID ? crypto.randomUUID() : crypto.randomBytes(16).toString('hex');
 
     try {
-      url = `https://2factor.in/API/V1/${smsKey}/SMS/${formattedPhone}/AUTOGEN2/${otpTemplateName}`;
-      logger.debug('Sending OTP via 2Factor API', { phone: formattedPhone.substring(0, 6) + 'xxxx' });
+      logger.debug('Sending OTP via StartMessaging API', { phone: formattedPhone.substring(0, 6) + 'xxxx' });
 
       const startTime = Date.now();
-      const response = await axios.get(url, {
-        timeout: 10000,
-        headers: { 'User-Agent': 'GolBot-Server/1.0' }
-      });
-
+      await smsService.sendOTP(formattedPhone, generatedOtp);
       const duration = Date.now() - startTime;
-      logger.apiLog('GET', url, response.status, `${duration}ms`);
 
-      const data = response.data;
-      if (data.Status !== "Success") {
-        logger.error('2Factor API error', {
-          status: data.Status,
-          details: data.Details,
-          phone: formattedPhone.substring(0, 6) + 'xxxx'
-        });
-        throw new ExternalServiceError(`OTP send failed: ${data.Details || "Unknown error"}`, "2Factor");
-      }
-
-      const generatedOtp = data.OTP;
-      const sessionId = data.Details;
-
-      logger.info('OTP generated successfully via 2Factor', {
+      logger.info('OTP sent successfully via StartMessaging', {
         sessionId,
-        phone: formattedPhone.substring(0, 6) + 'xxxx'
+        phone: formattedPhone.substring(0, 6) + 'xxxx',
+        duration: `${duration}ms`
       });
 
       const otpExpiry = new Date(Date.now() + 10 * 60 * 1000);
@@ -162,23 +146,7 @@ export const phoneSendOtp = async (req, res) => {
       }, "OTP sent successfully");
 
     } catch (apiError) {
-      const duration = Date.now() - (apiError.config?.metadata?.startTime || Date.now());
-      
-      if (apiError.code === 'ECONNABORTED') {
-        logger.error('2Factor API timeout', { duration });
-        throw new ExternalServiceError("SMS service timeout. Please try again.", "2Factor");
-      }
-
-      if (apiError.response) {
-        logger.apiLog('GET', url, apiError.response.status, `${duration}ms`, apiError);
-        throw new ExternalServiceError("Failed to send OTP. Please try again.", "2Factor");
-      }
-
-      logger.error('2Factor API network error', {
-        error: apiError.message,
-        code: apiError.code
-      });
-      throw new ExternalServiceError("SMS service unavailable. Please try again later.", "2Factor");
+      throw apiError;
     }
 
   } catch (error) {
@@ -210,7 +178,7 @@ export const verifyOtp = async (req, res) => {
       });
 
       let user = await DatabaseUtil.findOne(User, { phone: validatedPhone });
-      
+
       if (!user) {
         user = await DatabaseUtil.create(User, {
           phone: validatedPhone,
@@ -232,7 +200,7 @@ export const verifyOtp = async (req, res) => {
       }
 
       const token = user.createJwt();
-      
+
       logger.info('🎪 Demo OTP verification successful', {
         userId: user._id,
         phone: validatedPhone.substring(0, 6) + 'xxxx'

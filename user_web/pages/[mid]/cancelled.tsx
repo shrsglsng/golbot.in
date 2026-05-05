@@ -115,13 +115,6 @@ function CancelledPage() {
               Go to Home
             </Button>
 
-            {/* Help Section */}
-            <p className="text-sm text-muted-foreground text-center">
-              Need help with your cancelled order?{" "}
-              <Link href={`/${router.query.mid}/reportIssue`} className="text-destructive hover:underline font-medium">
-                Report an Issue
-              </Link>
-            </p>
           </Stack>
         </Container>
       </div>

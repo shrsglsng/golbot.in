@@ -396,7 +396,7 @@ export default function OrderDetailPage() {
         <div className="min-h-screen bg-background">
           <Navbar />
           <div className="w-full flex justify-center">
-            <div className="w-full md:w-1/2 lg:w-1/4 min-h-screen">
+            <div className="w-full md:w-5/6 lg:max-w-5xl min-h-screen">
               <div className="pt-[72px] px-4 py-24">
                 <div className="flex flex-col items-center gap-6">
                   <Loader2 className="h-16 w-16 animate-spin text-primary" />
@@ -419,7 +419,7 @@ export default function OrderDetailPage() {
         <div className="min-h-screen bg-background">
           <Navbar />
           <div className="w-full flex justify-center">
-            <div className="w-full md:w-1/2 lg:w-1/4 min-h-screen">
+            <div className="w-full md:w-5/6 lg:max-w-5xl min-h-screen">
               <div className="pt-[72px] px-4 py-24">
                 <Card className="shadow-lg">
                   <CardContent className="p-12 text-center">
@@ -454,7 +454,7 @@ export default function OrderDetailPage() {
         <Navbar />
 
         <div className="w-full flex justify-center">
-          <div className="w-full md:w-1/2 lg:w-1/4 min-h-screen pb-8">
+          <div className="w-full md:w-5/6 lg:max-w-5xl min-h-screen pb-8">
             <div className="pt-[72px]">
               {/* Back Button */}
               <div className="bg-background px-4 pt-4 pb-2">
@@ -469,68 +469,66 @@ export default function OrderDetailPage() {
                 </Button>
               </div>
 
-              {/* Status Banner */}
-              <div className={`bg-gradient-to-br ${status.gradient} text-white px-6 py-8 shadow-lg`}>
-                <div className="flex flex-col items-center gap-4">
-                  <div className="h-16 w-16 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center border-2 border-white/40 shadow-xl">
-                    <StatusIcon
-                      className={`h-9 w-9 text-white ${order.orderStatus === "PREPARING" ? "animate-spin" : ""}`}
-                      strokeWidth={2.5}
-                    />
+              {/* Main Grid Content */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start px-4">
+                
+                {/* Left Column: Status & Progress */}
+                <div className="space-y-6">
+                  {/* Status Banner */}
+                  <div className={`bg-gradient-to-br ${status.gradient} text-white px-6 py-8 shadow-lg rounded-2xl`}>
+                    <div className="flex flex-col items-center gap-4">
+                      <div className="h-16 w-16 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center border-2 border-white/40 shadow-xl">
+                        <StatusIcon
+                          className={`h-9 w-9 text-white ${order.orderStatus === "PREPARING" ? "animate-spin" : ""}`}
+                          strokeWidth={2.5}
+                        />
+                      </div>
+                      <div className="text-center space-y-2">
+                        <h1 className="text-2xl font-bold tracking-tight">{status.label}</h1>
+                        <p className="text-white/90 text-sm">{status.description}</p>
+                      </div>
+                      {order.orderCounter && order.orderCounter > 0 && (
+                        <Badge className="bg-white/20 hover:bg-white/30 text-white border-white/40 px-4 py-1.5">
+                          Order #{order.orderCounter}
+                        </Badge>
+                      )}
+                      <div className="flex items-center gap-2 text-xs text-white/80 mt-1">
+                        <Clock className="h-3.5 w-3.5" />
+                        <span>{formatDate(order.createdAt)} • {formatTime(order.createdAt)}</span>
+                      </div>
+                    </div>
                   </div>
-                  <div className="text-center space-y-2">
-                    <h1 className="text-2xl font-bold tracking-tight">{status.label}</h1>
-                    <p className="text-white/90 text-sm">{status.description}</p>
-                  </div>
-                  {order.orderCounter && order.orderCounter > 0 && (
-                    <Badge className="bg-white/20 hover:bg-white/30 text-white border-white/40 px-4 py-1.5">
-                      Order #{order.orderCounter}
-                    </Badge>
-                  )}
-                  <div className="flex items-center gap-2 text-xs text-white/80 mt-1">
-                    <Clock className="h-3.5 w-3.5" />
-                    <span>{formatDate(order.createdAt)} • {formatTime(order.createdAt)}</span>
-                  </div>
-                </div>
-              </div>
 
-              {/* Order Progress Timeline */}
-              <div className="px-4 py-4">
-                <Card className="shadow-md">
-                  <CardContent className="p-6">
-                    <h3 className="font-semibold mb-6">Order Journey</h3>
-                    <div className="space-y-6">
-                      {orderSteps.map((step, index) => {
-                        const isLast = index === orderSteps.length - 1;
-                        const isFailed = step.status === 'PAYMENT_FAILED';
-                        const isCancelled = step.status === 'CANCELLED';
+                  {/* Order Progress Timeline */}
+                  <Card className="shadow-md">
+                    <CardContent className="p-6">
+                      <h3 className="font-semibold mb-6">Order Journey</h3>
+                      <div className="space-y-6">
+                        {orderSteps.map((step, index) => {
+                          const isLast = index === orderSteps.length - 1;
+                          const isFailed = step.status === 'PAYMENT_FAILED';
+                          const isCancelled = step.status === 'CANCELLED';
 
-                        // For cancelled/failed orders, all steps are completed including the final status
-                        // For active orders, check if this step's status matches or comes before the current status
-                        let isCompleted = false;
-                        let isCurrent = false;
+                          let isCompleted = false;
+                          let isCurrent = false;
 
-                        if (isCancelled || isFailed) {
-                          // Terminal states: all steps including this one are completed
-                          isCompleted = true;
-                          isCurrent = true;
-                        } else if (order.orderStatus === 'CANCELLED' || order.orderStatus === 'PAYMENT_FAILED') {
-                          // This step is before the terminal state, so it's completed but not current
-                          isCompleted = true;
-                          isCurrent = false;
-                        } else {
-                          // Active order: check if this is the current step or before it
-                          const currentStepIndex = orderSteps.findIndex(s => s.status === order.orderStatus);
-                          isCompleted = index <= currentStepIndex;
-                          isCurrent = index === currentStepIndex;
-                        }
+                          if (isCancelled || isFailed) {
+                            isCompleted = true;
+                            isCurrent = true;
+                          } else if (order.orderStatus === 'CANCELLED' || order.orderStatus === 'PAYMENT_FAILED') {
+                            isCompleted = true;
+                            isCurrent = false;
+                          } else {
+                            const currentStepIndex = orderSteps.findIndex(s => s.status === order.orderStatus);
+                            isCompleted = index <= currentStepIndex;
+                            isCurrent = index === currentStepIndex;
+                          }
 
-                        const StepIcon = step.icon;
+                          const StepIcon = step.icon;
 
                           return (
                             <div key={step.status} className="relative">
                               <div className="flex items-start gap-4">
-                                {/* Icon */}
                                 <div className={`
                                   flex-shrink-0 h-10 w-10 rounded-full flex items-center justify-center
                                   ${isFailed || isCancelled
@@ -547,7 +545,6 @@ export default function OrderDetailPage() {
                                   />
                                 </div>
 
-                                {/* Content */}
                                 <div className="flex-1 pt-1">
                                   <p className={`font-semibold ${isCompleted ? 'text-foreground' : 'text-muted-foreground'}`}>
                                     {step.label}
@@ -563,26 +560,15 @@ export default function OrderDetailPage() {
                                   ) : null}
                                 </div>
 
-                                {/* Status Indicator */}
                                 {isCompleted && !isFailed && !isCancelled && (
                                   <div className="flex-shrink-0">
                                     <CheckCircle2 className="h-5 w-5 text-primary" />
                                   </div>
                                 )}
-                                {(isFailed || isCancelled) && (
-                                  <div className="flex-shrink-0">
-                                    <XCircle className="h-5 w-5 text-destructive" />
-                                  </div>
-                                )}
                               </div>
-
-                              {/* Connector Line */}
                               {!isLast && (
                                 <div
-                                  className={`
-                                    absolute left-5 top-10 w-0.5 h-6
-                                    ${isFailed || isCancelled ? 'bg-destructive' : isCompleted ? 'bg-primary' : 'bg-muted'}
-                                  `}
+                                  className={`absolute left-5 top-10 w-0.5 h-6 ${isFailed || isCancelled ? 'bg-destructive' : isCompleted ? 'bg-primary' : 'bg-muted'}`}
                                 />
                               )}
                             </div>
@@ -591,294 +577,141 @@ export default function OrderDetailPage() {
                       </div>
                     </CardContent>
                   </Card>
-                </div>
 
-              {/* Pending Payment Action Card */}
-              {order.orderStatus === 'PENDING' && (
-                <div className="px-4 pb-4">
-                  <Card className="shadow-md bg-gradient-to-br from-yellow-50/50 to-orange-50/50 dark:from-yellow-950/20 dark:to-orange-950/20 border-yellow-200/50">
-                    <CardContent className="p-5">
-                      <div className="flex items-start gap-4">
-                        <div className="h-12 w-12 rounded-full bg-yellow-100 dark:bg-yellow-900/30 flex items-center justify-center flex-shrink-0">
-                          <Clock className="h-6 w-6 text-yellow-600 dark:text-yellow-400" />
-                        </div>
-                        <div className="flex-1">
-                          <h3 className="font-semibold mb-1">Payment Pending</h3>
-                          <p className="text-sm text-muted-foreground mb-4">
-                            Complete your payment to proceed with the order. If you don&apos;t wish to continue, you can cancel the order.
-                          </p>
-                          <div className="flex flex-col sm:flex-row gap-2">
-                            <Button
-                              size="sm"
-                              variant="default"
-                              onClick={handleRetryPayment}
-                              disabled={isRetryingPayment}
-                              className="w-full sm:w-auto bg-green-600 hover:bg-green-700"
-                            >
-                              {isRetryingPayment ? (
-                                <>
-                                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                  Processing...
-                                </>
-                              ) : (
-                                <>
-                                  <CreditCard className="h-4 w-4 mr-2" />
-                                  Complete Payment
-                                </>
-                              )}
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={handleCancelOrder}
-                              disabled={isCancelling}
-                              className="w-full sm:w-auto border-red-300 text-red-700 hover:bg-red-50"
-                            >
-                              {isCancelling ? (
-                                <>
-                                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                  Cancelling...
-                                </>
-                              ) : (
-                                <>
-                                  <XCircle className="h-4 w-4 mr-2" />
-                                  Cancel Order
-                                </>
-                              )}
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </div>
-              )}
-
-              {/* Cancelled Status Info - Only show if no payment was made */}
-              {order.orderStatus === 'CANCELLED' && !order.statusHistory?.some((h: any) => h.status === 'PAID') && (
-                <div className="px-4 py-4">
-                  <Card className="shadow-md border-destructive/20 bg-destructive/5">
-                    <CardContent className="p-6">
-                      <div className="flex items-start gap-4">
-                        <div className="h-12 w-12 rounded-full bg-destructive/10 flex items-center justify-center flex-shrink-0">
-                          <XCircle className="h-6 w-6 text-destructive" />
-                        </div>
-                        <div className="flex-1">
-                          <h3 className="font-semibold text-destructive mb-1">Order Cancelled</h3>
-                          <p className="text-sm text-muted-foreground">
-                            This order has been cancelled. No charges were made to your account.
-                          </p>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </div>
-              )}
-
-              {/* QR Code Section - Only for PAID and later statuses */}
-              {canShowQR && qrContent && (
-                <div className="px-4 pb-4">
-                  <div className="mb-3 flex items-center gap-2">
-                    <QrCodeIcon className="h-5 w-5 text-primary" />
-                    <h2 className="font-bold text-lg">Scan to Collect</h2>
-                  </div>
-                  <Card className="shadow-lg">
-                    <CardContent className="p-0">
-                      <div className="p-8 flex flex-col items-center bg-gradient-to-br from-primary/5 to-orange-50/30 dark:from-primary/10 dark:to-orange-950/20">
-                        <div className="p-6 bg-white rounded-2xl shadow-xl ring-4 ring-primary/10">
-                          <QRCode value={JSON.stringify(qrContent)} size={200} />
-                        </div>
-                        <div className="mt-6 flex items-center gap-2 px-4 py-2 bg-green-100 dark:bg-green-950/30 rounded-full">
-                          <div className="h-2 w-2 bg-green-600 rounded-full animate-pulse" />
-                          <span className="text-sm font-semibold text-green-700 dark:text-green-400">
-                            Ready to scan
-                          </span>
-                        </div>
-                      </div>
-
-                      <Separator />
-
-                      <div className="p-6 bg-muted/30">
-                        <div className="text-center space-y-3">
-                          <div className="flex items-center justify-center gap-2">
-                            <span className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
-                              Or enter code manually
-                            </span>
-                          </div>
-                          <div className="text-5xl font-bold tracking-[0.2em] text-primary">
-                            {order.orderOtp}
-                          </div>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </div>
-              )}
-
-              {/* Payment Failed Action Card */}
-              {order.orderStatus === 'PAYMENT_FAILED' && order.machineId && (
-                <div className="px-4 pb-4">
-                  <Card className="shadow-md bg-gradient-to-br from-red-50/50 to-orange-50/50 dark:from-red-950/20 dark:to-orange-950/20 border-red-200/50">
-                    <CardContent className="p-5">
-                      <div className="flex items-start gap-4">
-                        <div className="h-12 w-12 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center flex-shrink-0">
-                          <XCircle className="h-6 w-6 text-red-600 dark:text-red-400" />
-                        </div>
-                        <div className="flex-1">
-                          <h3 className="font-semibold mb-1">Payment Failed</h3>
-                          <p className="text-sm text-muted-foreground mb-3">
-                            Don&apos;t worry! No charges were made to your account. You can try placing your order again.
-                          </p>
-                          <div className="flex flex-col sm:flex-row gap-2">
-                            <Button
-                              size="sm"
-                              variant="default"
-                              onClick={() => router.push(`/${order.machineId}`)}
-                              className="w-full sm:w-auto"
-                            >
-                              <ShoppingCart className="h-4 w-4 mr-2" />
-                              Place New Order
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => router.push(`/${order.machineId}/reportIssue`)}
-                              className="w-full sm:w-auto"
-                            >
-                              <AlertTriangle className="h-4 w-4 mr-2" />
-                              Report Issue
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </div>
-              )}
-
-              {/* Live Preparation View - Only for active preparation statuses */}
-              {['OTP_VERIFIED', 'PREPARING', 'READY_FOR_PICKUP'].includes(order.orderStatus) && order.machineId && (
-                <div className="px-4 pb-4">
-                  <Card className="shadow-md bg-gradient-to-br from-orange-50/50 to-amber-50/50 dark:from-orange-950/20 dark:to-amber-950/20 border-orange-200/50">
-                    <CardContent className="p-5">
-                      <div className="flex items-start gap-4">
-                        <div className="h-12 w-12 rounded-full bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center flex-shrink-0">
-                          <Loader2 className={`h-6 w-6 text-orange-600 dark:text-orange-400 ${order.orderStatus === 'PREPARING' ? 'animate-spin' : ''}`} />
-                        </div>
-                        <div className="flex-1">
-                          <h3 className="font-semibold mb-1">
-                            {order.orderStatus === 'OTP_VERIFIED' && 'Starting Preparation'}
-                            {order.orderStatus === 'PREPARING' && 'Your Order is Being Prepared'}
-                            {order.orderStatus === 'READY_FOR_PICKUP' && 'Order Ready for Pickup'}
-                          </h3>
-                          <p className="text-sm text-muted-foreground mb-3">
-                            View live preparation status with animation
-                          </p>
-                          <Button
-                            size="sm"
-                            variant="default"
-                            onClick={() => router.push(`/${order.machineId}/preparingOrder`)}
-                            className="w-full sm:w-auto"
-                          >
-                            <Loader2 className="h-4 w-4 mr-2" />
-                            View Live Preparation
-                          </Button>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </div>
-              )}
-
-              {/* Machine Info */}
-              {order.machineId && (
-                <div className="px-4 pb-4">
-                  <div className="mb-3 flex items-center gap-2">
-                    <MapPin className="h-5 w-5 text-primary" />
-                    <h2 className="font-bold text-lg">Pickup Location</h2>
-                  </div>
-                  <Card className="shadow-md">
-                    <CardContent className="p-5">
-                      <div className="space-y-2">
-                        <p className="font-semibold text-lg">{order.machineId}</p>
-                        {order.machineLocation && (
-                          <p className="text-sm text-muted-foreground">{order.machineLocation}</p>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                </div>
-              )}
-
-              {/* Order Items */}
-              <div className="px-4 pb-4">
-                <div className="mb-3 flex items-center gap-2">
-                  <Receipt className="h-5 w-5 text-primary" />
-                  <h2 className="font-bold text-lg">Order Items</h2>
-                </div>
-                <Card className="shadow-md">
-                  <CardContent className="p-5">
-                    <div className="space-y-4">
-                      {order.items && order.items.length > 0 ? (
-                        order.items.map((item: any, index: number) => (
-                          <div key={index}>
-                            <div className="flex items-start justify-between">
-                              <div className="flex-1">
-                                <div className="flex items-center gap-2 mb-1">
-                                  <div className="h-4 w-4 border-2 flex items-center justify-center rounded-sm border-green-600">
-                                    <div className="h-1.5 w-1.5 rounded-full bg-green-600" />
-                                  </div>
-                                  <p className="font-semibold">{item.name}</p>
-                                </div>
-                                {item.desc && (
-                                  <p className="text-sm text-muted-foreground ml-6">{item.desc}</p>
-                                )}
-                              </div>
-                              <div className="text-right ml-4 flex-shrink-0">
-                                <p className="font-semibold">₹{(item.price * item.quantity).toFixed(0)}</p>
-                                <p className="text-xs text-muted-foreground">
-                                  ₹{item.price} × {item.quantity}
-                                </p>
-                              </div>
-                            </div>
-                            {index < order.items.length - 1 && <Separator className="my-4" />}
-                          </div>
-                        ))
-                      ) : (
-                        <p className="text-sm text-muted-foreground">No items found</p>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-
-              {/* Bill Summary */}
-              <div className="px-4 pb-6">
-                <div className="mb-3 flex items-center gap-2">
-                  <Receipt className="h-5 w-5 text-primary" />
-                  <h2 className="font-bold text-lg">Bill Details</h2>
-                </div>
-                <Card className="shadow-md">
-                  <CardContent className="p-5">
+                  {/* QR Code Section - Top priority when ready */}
+                  {canShowQR && qrContent && (
                     <div className="space-y-3">
-                      <div className="flex justify-between text-sm">
-                        <span className="text-muted-foreground">Item Total</span>
-                        <span className="font-medium">₹{order.amount?.price?.toFixed(0) || "0"}</span>
+                      <div className="flex items-center gap-2">
+                        <QrCodeIcon className="h-5 w-5 text-primary" />
+                        <h2 className="font-bold text-lg">Scan to Collect</h2>
                       </div>
-                      <div className="flex justify-between text-sm">
-                        <span className="text-muted-foreground">Taxes & Charges</span>
-                        <span className="font-medium">₹{order.amount?.gst?.toFixed(0) || "0"}</span>
-                      </div>
-                      <Separator />
-                      <div className="flex justify-between items-center bg-primary/5 dark:bg-primary/10 -mx-5 -mb-5 px-5 py-4 rounded-b-lg">
-                        <span className="font-bold text-base">PAID</span>
-                        <span className="font-bold text-2xl text-primary">
-                          ₹{order.amount?.total?.toFixed(0) || "0"}
-                        </span>
-                      </div>
+                      <Card className="shadow-lg overflow-hidden">
+                        <div className="p-8 flex flex-col items-center bg-gradient-to-br from-primary/5 to-orange-50/30">
+                          <div className="p-6 bg-white rounded-2xl shadow-xl ring-4 ring-primary/10">
+                            <QRCode value={JSON.stringify(qrContent)} size={180} />
+                          </div>
+                          <div className="mt-6 flex items-center gap-2 px-4 py-2 bg-green-100 rounded-full">
+                            <div className="h-2 w-2 bg-green-600 rounded-full animate-pulse" />
+                            <span className="text-sm font-semibold text-green-700">Ready to scan</span>
+                          </div>
+                        </div>
+                        <div className="p-6 bg-muted/30 border-t text-center">
+                          <p className="text-xs font-medium text-muted-foreground uppercase tracking-widest mb-2">Manual Collection Code</p>
+                          <div className="text-4xl font-bold tracking-[0.2em] text-primary">{order.orderOtp}</div>
+                        </div>
+                      </Card>
                     </div>
-                  </CardContent>
-                </Card>
+                  )}
+
+                  {/* Action Cards */}
+                  {order.orderStatus === 'PENDING' && (
+                    <Card className="shadow-md bg-gradient-to-br from-yellow-50 to-orange-50 border-yellow-200/50">
+                      <CardContent className="p-5">
+                        <div className="flex items-start gap-4">
+                          <div className="h-12 w-12 rounded-full bg-yellow-100 flex items-center justify-center flex-shrink-0">
+                            <Clock className="h-6 w-6 text-yellow-600" />
+                          </div>
+                          <div className="flex-1">
+                            <h3 className="font-semibold mb-1">Payment Pending</h3>
+                            <p className="text-sm text-muted-foreground mb-4">Complete your payment to proceed with the order.</p>
+                            <div className="flex flex-col sm:flex-row gap-2">
+                              <Button size="sm" variant="default" onClick={handleRetryPayment} disabled={isRetryingPayment} className="bg-green-600 hover:bg-green-700">
+                                {isRetryingPayment ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <CreditCard className="h-4 w-4 mr-2" />}
+                                Complete Payment
+                              </Button>
+                              <Button size="sm" variant="outline" onClick={handleCancelOrder} disabled={isCancelling} className="border-red-300 text-red-700 hover:bg-red-50">
+                                {isCancelling ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <XCircle className="h-4 w-4 mr-2" />}
+                                Cancel Order
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+                </div>
+
+                {/* Right Column: Details & Items */}
+                <div className="space-y-6">
+                  {/* Preparation View Link */}
+                  {['OTP_VERIFIED', 'PREPARING', 'READY_FOR_PICKUP'].includes(order.orderStatus) && (
+                    <Card className="shadow-md border-orange-200/50 bg-orange-50/50">
+                      <CardContent className="p-5">
+                        <div className="flex items-center justify-between gap-4">
+                          <div className="flex items-center gap-3">
+                            <div className="h-10 w-10 rounded-full bg-orange-100 flex items-center justify-center">
+                              <Loader2 className={`h-5 w-5 text-orange-600 ${order.orderStatus === 'PREPARING' ? 'animate-spin' : ''}`} />
+                            </div>
+                            <h3 className="font-semibold text-sm">Live Preparation View</h3>
+                          </div>
+                          <Button size="sm" onClick={() => router.push(`/${order.machineId}/preparingOrder`)}>View</Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Machine Location */}
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <MapPin className="h-5 w-5 text-primary" />
+                      <h2 className="font-bold text-lg">Pickup Location</h2>
+                    </div>
+                    <Card className="shadow-md">
+                      <CardContent className="p-5">
+                        <p className="font-semibold">{order.machineId}</p>
+                        {order.machineLocation && <p className="text-sm text-muted-foreground mt-1">{order.machineLocation}</p>}
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  {/* Order Items */}
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <Package className="h-5 w-5 text-primary" />
+                      <h2 className="font-bold text-lg">Items Ordered</h2>
+                    </div>
+                    <Card className="shadow-md">
+                      <CardContent className="p-5 space-y-4">
+                        {order.items?.map((item: any, index: number) => (
+                          <div key={index}>
+                            <div className="flex justify-between items-start">
+                              <div>
+                                <p className="font-semibold text-sm">{item.name}</p>
+                                <p className="text-xs text-muted-foreground mt-1">₹{item.price} × {item.quantity}</p>
+                              </div>
+                              <p className="font-bold">₹{(item.price * item.quantity).toFixed(0)}</p>
+                            </div>
+                            {index < order.items.length - 1 && <Separator className="mt-4" />}
+                          </div>
+                        ))}
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  {/* Bill Summary */}
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <Receipt className="h-5 w-5 text-primary" />
+                      <h2 className="font-bold text-lg">Bill Details</h2>
+                    </div>
+                    <Card className="shadow-md overflow-hidden">
+                      <CardContent className="p-5 space-y-3">
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">Item Total</span>
+                          <span>₹{order.amount?.price?.toFixed(0) || "0"}</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">Taxes & Charges</span>
+                          <span>₹{order.amount?.gst?.toFixed(0) || "0"}</span>
+                        </div>
+                        <div className="bg-primary/5 -mx-5 -mb-5 px-5 py-4 flex justify-between items-center mt-2 border-t border-primary/10">
+                          <span className="font-bold">Total Paid</span>
+                          <span className="font-bold text-xl text-primary">₹{order.amount?.total?.toFixed(0) || "0"}</span>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+                </div>
               </div>
             </div>
           </div>

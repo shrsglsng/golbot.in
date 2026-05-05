@@ -152,15 +152,18 @@ class _PreparingOrderScreenState extends State<PreparingOrderScreen> {
               readyForPickup = true;
             } else if (latestStatus == "COMPLETED") {
               orderCompleted = true;
-              _statusPollingTimer?.cancel(); // Stop polling when completed
-            } else if (latestStatus == "CANCELLED") {
-              _statusPollingTimer?.cancel(); // Stop polling when cancelled
+              _statusPollingTimer?.cancel();
               // Auto-navigate home after 3 seconds
-              _autoProgressTimer?.cancel(); // Cancel any existing timer first
-              _autoProgressTimer = Timer(Duration(seconds: 3), () {
-                if (mounted) {
-                  _goHome();
-                }
+              _autoProgressTimer?.cancel();
+              _autoProgressTimer = Timer(const Duration(seconds: 3), () {
+                if (mounted) _goHome();
+              });
+            } else if (latestStatus == "CANCELLED") {
+              _statusPollingTimer?.cancel();
+              // Auto-navigate home after 3 seconds
+              _autoProgressTimer?.cancel();
+              _autoProgressTimer = Timer(const Duration(seconds: 3), () {
+                if (mounted) _goHome();
               });
             }
           });
@@ -211,14 +214,9 @@ class _PreparingOrderScreenState extends State<PreparingOrderScreen> {
                   _statusPollingTimer?.cancel();
 
                   // Auto-navigate home after 3 seconds
-                  if (latestStatus == 'COMPLETED') {
+                  if (latestStatus == 'COMPLETED' || latestStatus == 'CANCELLED') {
                     _autoProgressTimer?.cancel();
-                    _autoProgressTimer = Timer(Duration(seconds: 3), () {
-                      if (mounted) _goHome();
-                    });
-                  } else if (latestStatus == 'CANCELLED') {
-                    _autoProgressTimer?.cancel();
-                    _autoProgressTimer = Timer(Duration(seconds: 2), () {
+                    _autoProgressTimer = Timer(const Duration(seconds: 3), () {
                       if (mounted) _goHome();
                     });
                   }
@@ -449,6 +447,12 @@ class _PreparingOrderScreenState extends State<PreparingOrderScreen> {
         orderStatus = "COMPLETED";
       });
       await _storageService.clearCurrentOrder();
+      
+      // Auto-navigate to home after 3 seconds
+      _autoProgressTimer?.cancel();
+      _autoProgressTimer = Timer(const Duration(seconds: 3), () {
+        if (mounted) _goHome();
+      });
     } else {
       _showError('Failed to complete order');
     }
@@ -570,7 +574,7 @@ class _PreparingOrderScreenState extends State<PreparingOrderScreen> {
         ),
       ),
       body: _isLoading
-          ? Center(
+          ? const Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -580,294 +584,240 @@ class _PreparingOrderScreenState extends State<PreparingOrderScreen> {
                 ],
               ),
             )
-          : Center(
-              child: SingleChildScrollView(
-                child: Container(
-                  constraints: const BoxConstraints(maxWidth: 420),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 20, vertical: 32),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      // Firmware mode indicator
-                      if (widget.isAutoMode)
-                        Container(
-                          margin: const EdgeInsets.only(bottom: 16),
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: Colors.black87,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.settings_input_component,
-                                color: Colors.orange,
-                                size: 20,
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                'Firmware Auto Mode Active',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      Card(
-                        elevation: 8,
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(20)),
-                        shadowColor: Colors.black12,
-                        color: Colors.white,
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                              vertical: 28.0, horizontal: 32.0),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text("Order ID:",
-                                  style: TextStyle(
-                                      fontSize: 14,
-                                      color: Colors.grey[600],
-                                      fontWeight: FontWeight.w500)),
-                              const SizedBox(height: 2),
-                              SelectableText(_order?.sId ?? 'N/A',
-                                  style: const TextStyle(
-                                      fontSize: 17,
-                                      fontWeight: FontWeight.bold,
-                                      letterSpacing: 0.5)),
-                              const SizedBox(height: 10),
-                              Row(
+          : OrientationBuilder(
+              builder: (context, orientation) {
+                bool isLandscape = orientation == Orientation.landscape;
+
+                if (isLandscape) {
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 48.0, vertical: 24.0),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        // Left Side: Order Info Card (Centered)
+                        Expanded(
+                          flex: 2,
+                          child: Center(
+                            child: SingleChildScrollView(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
                                 children: [
-                                  Text("Status: ",
-                                      style: TextStyle(
-                                          fontSize: 15,
-                                          color: Colors.grey[700],
-                                          fontWeight: FontWeight.w500)),
-                                  Text(orderStatus,
-                                      style: TextStyle(
-                                          fontSize: 15,
-                                          color: orderCompleted
-                                              ? Colors.green[700]
-                                              : readyForPickup
-                                                  ? Colors.blue[700]
-                                                  : Colors.orange[700],
-                                          fontWeight: FontWeight.bold)),
+                                  if (widget.isAutoMode) _buildFirmwareIndicator(),
+                                  _buildOrderInfoCard(),
                                 ],
                               ),
-                              const SizedBox(height: 6),
-                              Text(
-                                  "Order Number: ${_order?.orderCounter != null && _order!.orderCounter! > 0 ? '#${_order!.orderCounter}' : 'Processing...'}",
-                                  style: TextStyle(
-                                      fontSize: 15,
-                                      color: CPrimary,
-                                      fontWeight: FontWeight.w600)),
-                            ],
+                            ),
                           ),
                         ),
-                      ),
-                const SizedBox(height: 38),
-                AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 350),
-                  child: orderCompleted
-                      ? Column(
-                          key: const ValueKey("completed"),
-                          children: [
-                            Icon(Icons.check_circle_rounded, size: 90, color: Colors.green[600]),
-                            const SizedBox(height: 20),
-                            Text("Order Completed!", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.green[700], letterSpacing: 0.2)),
-                            const SizedBox(height: 12),
-                            Text("Food has been dispensed", style: TextStyle(fontSize: 17, color: Colors.grey[700])),
-                            const SizedBox(height: 18),
-                            Text("Press 'Go to Home' to continue.", style: TextStyle(fontSize: 14, color: Colors.grey[500], fontStyle: FontStyle.italic)),
-                            const SizedBox(height: 28),
-                            ElevatedButton.icon(
-                              onPressed: _goHome,
-                              icon: const Icon(Icons.home, color: Colors.white),
-                              label: const Text("Go to Home", style: TextStyle(fontSize: 18, color: Colors.white)),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.blue[700],
-                                padding: const EdgeInsets.symmetric(horizontal: 38, vertical: 16),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
-                                elevation: 2,
+                        const SizedBox(width: 48),
+                        // Right Side: Visual Progress AND Control Buttons (Centered)
+                        Expanded(
+                          flex: 3,
+                          child: Center(
+                            child: SingleChildScrollView(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  _buildVisualStatus(),
+                                  const SizedBox(height: 40),
+                                  _buildControlButtons(),
+                                ],
                               ),
                             ),
-                          ],
-                        )
-                      : orderStatus == "CANCELLED"
-                          ? Column(
-                              key: const ValueKey("cancelled"),
-                              children: [
-                                Icon(Icons.cancel_rounded, size: 90, color: Colors.red[600]),
-                                const SizedBox(height: 20),
-                                Text("Order Cancelled", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.red[700], letterSpacing: 0.2)),
-                                const SizedBox(height: 28),
-                                ElevatedButton.icon(
-                                  onPressed: _goHome,
-                                  icon: const Icon(Icons.home, color: Colors.white),
-                                  label: const Text("Go to Home", style: TextStyle(fontSize: 18, color: Colors.white)),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.blue[700],
-                                    padding: const EdgeInsets.symmetric(horizontal: 38, vertical: 16),
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
-                                    elevation: 2,
-                                  ),
-                                ),
-                              ],
-                            )
-                      : readyForPickup
-                          ? Column(
-                              key: const ValueKey("ready"),
-                              children: [
-                                Icon(Icons.restaurant_menu_rounded, size: 90, color: Colors.blue[600]),
-                                const SizedBox(height: 20),
-                                Text("Food Ready!", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.blue[700], letterSpacing: 0.2)),
-                                const SizedBox(height: 12),
-                                Text("Food preparation is complete", style: TextStyle(fontSize: 17, color: Colors.grey[700])),
-                                const SizedBox(height: 28),
-                                ElevatedButton.icon(
-                                  onPressed: _dispenseOrder,
-                                  icon: const Icon(Icons.check, color: Colors.white),
-                                  label: const Text("Dispense Food", style: TextStyle(fontSize: 18, color: Colors.white, fontWeight: FontWeight.bold)),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.green[600],
-                                    padding: const EdgeInsets.symmetric(horizontal: 38, vertical: 16),
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
-                                    elevation: 2,
-                                  ),
-                                ),
-                              ],
-                            )
-                          : orderStatus == "OTP_VERIFIED"
-                              ? Column(
-                                  key: const ValueKey("otp_verified"),
-                                  children: [
-                                    Icon(Icons.verified_rounded, size: 90, color: Colors.blue[600]),
-                                    const SizedBox(height: 20),
-                                    Text("OTP Verified", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.blue[700], letterSpacing: 0.2)),
-                                    const SizedBox(height: 12),
-                                    Text("Waiting for machine to start preparation...", style: TextStyle(fontSize: 17, color: Colors.grey[700]), textAlign: TextAlign.center),
-                                    const SizedBox(height: 28),
-                                    CircularProgressIndicator(
-                                      backgroundColor: Colors.grey[300],
-                                      valueColor: AlwaysStoppedAnimation<Color>(Colors.blue[600]!),
-                                      strokeWidth: 5,
-                                    ),
-                                  ],
-                                )
-                              : Column(
-                                  key: const ValueKey("preparing"),
-                                  children: [
-                                    Icon(Icons.restaurant_rounded, size: 90, color: Colors.orange[600]),
-                                    const SizedBox(height: 20),
-                                    Text("Preparing Your Order", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.orange[700], letterSpacing: 0.2)),
-                                    const SizedBox(height: 12),
-                                    Text("Please wait while the machine prepares your food...", style: TextStyle(fontSize: 17, color: Colors.grey[700]), textAlign: TextAlign.center),
-                                    const SizedBox(height: 28),
-                                    CircularProgressIndicator(
-                                      backgroundColor: Colors.grey[300],
-                                      valueColor: AlwaysStoppedAnimation<Color>(Colors.orange[600]!),
-                                      strokeWidth: 5,
-                                    ),
-                                  ],
-                                ),
-                ),
-                      const SizedBox(height: 40),
-                      // Control buttons (hide if completed, ready for pickup, or cancelled)
-                      if (!orderCompleted && !readyForPickup && orderStatus != "CANCELLED")
-                        Wrap(
-                          alignment: WrapAlignment.center,
-                          spacing: 16,
-                          runSpacing: 12,
-                          children: [
-                            // Start Preparation button (only show if OTP_VERIFIED)
-                            if (orderStatus == "OTP_VERIFIED")
-                              ElevatedButton.icon(
-                                onPressed: _startPreparation,
-                                icon: const Icon(Icons.play_arrow,
-                                    color: Colors.white),
-                                label: Text(
-                                  "Start Preparation",
-                                  style: TextStyle(
-                                      fontSize: 16,
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold),
-                                ),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.green[700],
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 30, vertical: 16),
-                                  shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(24)),
-                                  elevation: 1,
-                                ),
-                              ),
-                            // Cancel button (always available)
-                            ElevatedButton.icon(
-                              onPressed: _isCancelling ? null : _cancelOrder,
-                              icon: _isCancelling
-                                  ? const SizedBox(
-                                      width: 16,
-                                      height: 16,
-                                      child: CircularProgressIndicator(
-                                        color: Colors.white,
-                                        strokeWidth: 2,
-                                      ),
-                                    )
-                                  : const Icon(Icons.cancel, color: Colors.white),
-                              label: Text(
-                                _isCancelling
-                                    ? "Cancelling..."
-                                    : (widget.isAutoMode
-                                        ? "Emergency Cancel"
-                                        : "Cancel Order"),
-                                style: TextStyle(
-                                    fontSize: 16, color: Colors.white),
-                              ),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.red[600],
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 30, vertical: 16),
-                                shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(24)),
-                                elevation: 1,
-                              ),
-                            ),
-                            // Mark Ready button (only show if PREPARING)
-                            if (orderStatus == "PREPARING")
-                              ElevatedButton.icon(
-                                onPressed: _markAsReadyForPickup,
-                                icon: const Icon(Icons.check_circle,
-                                    color: Colors.white),
-                                label: Text(
-                                  "Mark Ready",
-                                  style: TextStyle(
-                                      fontSize: 16,
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold),
-                                ),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.blue[700],
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 30, vertical: 16),
-                                  shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(24)),
-                                  elevation: 1,
-                                ),
-                              ),
-                          ],
+                          ),
                         ),
-                    ],
+                      ],
+                    ),
+                  );
+                }
+
+                // Portrait Layout
+                return Center(
+                  child: SingleChildScrollView(
+                    child: Container(
+                      constraints: const BoxConstraints(maxWidth: 450),
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 32),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          if (widget.isAutoMode) _buildFirmwareIndicator(),
+                          _buildOrderInfoCard(),
+                          const SizedBox(height: 32),
+                          _buildVisualStatus(),
+                          const SizedBox(height: 40),
+                          _buildControlButtons(),
+                        ],
+                      ),
+                    ),
                   ),
-                ),
-              ),
+                );
+              },
             ),
+    );
+  }
+
+  Widget _buildFirmwareIndicator() {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.black87,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: const Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.settings_input_component, color: Colors.orange, size: 20),
+          SizedBox(width: 8),
+          Text(
+            'Firmware Auto Mode Active',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOrderInfoCard() {
+    return Card(
+      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      color: Colors.white,
+      child: Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text("Order ID:",
+                style: TextStyle(fontSize: 14, color: Colors.grey[600])),
+            const SizedBox(height: 4),
+            SelectableText(_order?.sId ?? 'N/A',
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                const Text("Status: ", style: TextStyle(fontSize: 16)),
+                Text(orderStatus,
+                    style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: orderCompleted ? Colors.green : Colors.orange)),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+                "Order Number: ${_order?.orderCounter != null ? '#${_order!.orderCounter}' : '...'}",
+                style: TextStyle(fontSize: 16, color: CPrimary, fontWeight: FontWeight.bold)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildVisualStatus() {
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 300),
+      child: orderCompleted
+          ? _buildStateView(Icons.check_circle, "Order Completed!", "Food has been dispensed", Colors.green, true)
+          : orderStatus == "CANCELLED"
+              ? _buildStateView(Icons.cancel, "Order Cancelled", "The order was cancelled", Colors.red, true)
+              : readyForPickup
+                  ? _buildStateView(Icons.restaurant_menu, "Food Ready!", "Please collect your food", Colors.blue, false, showDispense: true)
+                  : _buildLoadingView(
+                      orderStatus == "OTP_VERIFIED" ? "OTP Verified" : "Preparing Your Order",
+                      orderStatus == "OTP_VERIFIED" ? "Waiting to start..." : "Please wait while we prepare your food...",
+                      orderStatus == "PREPARING" ? Colors.orange : Colors.blue),
+    );
+  }
+
+  Widget _buildStateView(IconData icon, String title, String subtitle, Color color, bool showHome, {bool showDispense = false}) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 100, color: color),
+        const SizedBox(height: 20),
+        Text(title, style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: color)),
+        const SizedBox(height: 10),
+        Text(subtitle, style: const TextStyle(fontSize: 18), textAlign: TextAlign.center),
+        if (showDispense) ...[
+          const SizedBox(height: 32),
+          ElevatedButton(
+            onPressed: _dispenseOrder,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green,
+              padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 16),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+            ),
+            child: const Text("Dispense Food", style: TextStyle(fontSize: 20, color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
+        if (showHome) ...[
+          const SizedBox(height: 32),
+          ElevatedButton.icon(
+            onPressed: _goHome,
+            icon: const Icon(Icons.home, color: Colors.white),
+            label: const Text("Go to Home", style: TextStyle(fontSize: 18, color: Colors.white)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blue[700],
+              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildLoadingView(String title, String subtitle, Color color) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        CircularProgressIndicator(strokeWidth: 6, valueColor: AlwaysStoppedAnimation<Color>(color)),
+        const SizedBox(height: 32),
+        Text(title, style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: color)),
+        const SizedBox(height: 12),
+        Text(subtitle, style: const TextStyle(fontSize: 18), textAlign: TextAlign.center),
+      ],
+    );
+  }
+
+  Widget _buildControlButtons() {
+    if (orderCompleted || readyForPickup || orderStatus == "CANCELLED") return const SizedBox.shrink();
+
+    return Column(
+      children: [
+        if (orderStatus == "OTP_VERIFIED")
+          _buildActionButton("Start Preparation", Icons.play_arrow, Colors.blue, _startPreparation),
+        if (orderStatus == "PREPARING")
+          _buildActionButton("Mark as Ready", Icons.check_circle, Colors.green, _markAsReadyForPickup),
+        const SizedBox(height: 12),
+        _buildActionButton(_isCancelling ? "Cancelling..." : "Cancel Order", Icons.cancel, Colors.red[400]!, _isCancelling ? null : _cancelOrder),
+      ],
+    );
+  }
+
+  Widget _buildActionButton(String label, IconData icon, Color color, VoidCallback? onPressed) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12.0),
+      child: SizedBox(
+        width: double.infinity,
+        child: ElevatedButton.icon(
+          onPressed: onPressed,
+          icon: Icon(icon, color: Colors.white),
+          label: Text(label, style: const TextStyle(fontSize: 18, color: Colors.white, fontWeight: FontWeight.bold)),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: color,
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        ),
+      ),
     );
   }
 }

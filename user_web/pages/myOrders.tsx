@@ -242,7 +242,7 @@ export default function MyOrdersPage() {
         <Navbar />
 
         <div className="w-full flex justify-center">
-          <div className="w-full md:w-1/2 lg:w-1/4 min-h-screen">
+          <div className="w-full md:w-5/6 lg:w-4/6 xl:w-1/2 min-h-screen">
             <div className="pt-[72px]">
               {/* Header */}
               <div className="bg-background sticky top-[72px] z-10 border-b shadow-sm">
@@ -298,7 +298,7 @@ export default function MyOrdersPage() {
               {/* Orders List */}
               {!isLoading && orders.length > 0 && (
                 <>
-                  <div className="px-4 py-4 space-y-3">
+                  <div className="px-4 py-4 grid grid-cols-1 md:grid-cols-2 gap-4">
                     {orders.map((order) => (
                       <OrderCard key={order.oid} order={order} />
                     ))}

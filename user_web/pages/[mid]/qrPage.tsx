@@ -172,7 +172,7 @@ function QRPage() {
             />
           )}
           <div className="w-full flex justify-center">
-            <div className="w-full md:w-1/2 lg:w-1/4 min-h-screen">
+            <div className="w-full md:w-5/6 lg:max-w-4xl min-h-screen">
               <div className="pt-[72px] px-4 py-24">
                 <Card className="shadow-lg">
                   <CardContent className="p-12">
@@ -210,7 +210,7 @@ function QRPage() {
             />
           )}
           <div className="w-full flex justify-center">
-            <div className="w-full md:w-1/2 lg:w-1/4 min-h-screen">
+            <div className="w-full md:w-5/6 lg:max-w-4xl min-h-screen">
               <div className="pt-[72px] px-4 py-24">
                 <Card className="shadow-lg border-destructive/20">
                   <CardContent className="p-12">
@@ -258,7 +258,7 @@ function QRPage() {
         )}
 
         <div className="w-full flex justify-center">
-          <div className="w-full md:w-1/2 lg:w-1/4 min-h-screen pb-8">
+          <div className="w-full md:w-5/6 lg:max-w-4xl min-h-screen pb-8">
             <div className="pt-[72px]">
               {/* Success Banner */}
               <div className="bg-gradient-to-br from-green-500 via-green-600 to-emerald-600 text-white px-6 py-8 shadow-lg">
@@ -433,13 +433,6 @@ function QRPage() {
                 </Button>
               </div>
 
-              {/* Help Link */}
-              <p className="text-center text-sm text-muted-foreground px-4 pb-4">
-                Having trouble?{" "}
-                <Link href={`/${router.query.mid}/reportIssue`} className="text-primary hover:underline font-semibold">
-                  Report an Issue
-                </Link>
-              </p>
             </div>
           </div>
         </div>

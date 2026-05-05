@@ -691,15 +691,20 @@ export const createReportIssue = async (req, res) => {
       throw new NotFoundError("Order not found or access denied");
     }
 
-    const imgUrl = req.file?.location || req.file?.path || "";
+    const imgUrl = req.file ? `/uploads/${req.file.filename}` : "";
+    
+    // Import dynamically or from top level. Let's do it here since it's a small change.
+    const { generateReportId } = await import("../utils/reportUtils.js");
+    const reportId = await generateReportId();
 
     const reportData = {
+      reportId,
       uid: new mongoose.Types.ObjectId(uid),
       oid: new mongoose.Types.ObjectId(oid),
       description: Validator.sanitizeInput(description),
-      machineId,
+      machineId: order.machineId,
       imgUrl,
-      status: 'PENDING',
+      status: 'initiated',
       createdAt: new Date()
     };
 

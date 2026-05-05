@@ -67,139 +67,188 @@ class _ManualOTPScreenState extends State<ManualOTPScreen> {
           ),
         ),
       ),
-      body: Center(
-        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-          Container(
-            width: 400,
-            height: 660,
-            child: Column(
-              children: [
-                // title
-                Text(
-                  "Enter OTP",
-                  style: TextStyle(
-                    color: Colors.black,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 32,
-                  ),
-                ),
+      body: OrientationBuilder(
+        builder: (context, orientation) {
+          bool isLandscape = orientation == Orientation.landscape;
 
-                SizedBox(height: 60.0),
-
-                // OTP
-                Pinput(
-                  length: 4,
-                  defaultPinTheme: defaultPinTheme,
-                  controller: pinController,
-                  keyboardType: TextInputType.none,
-                  onChanged: (value) {
-                    if (value.length != 4)
-                      setState(() {
-                        isBtnDisabled = true;
-                      });
-                  },
-                  onCompleted: (value) => setState(() {
-                    isBtnDisabled = false;
-                  }),
-                ),
-
-                SizedBox(height: 20.0),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          _keyPad(),
-                        ],
+          if (isLandscape) {
+            return Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 48.0, vertical: 24.0),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  // Left Side: Keypad (Centered)
+                  Expanded(
+                    flex: 1,
+                    child: Center(
+                      child: SingleChildScrollView(
+                        child: _keyPad(),
                       ),
                     ),
-                  ],
-                ),
-                SizedBox(height: 20.0),
-                Row(
-                  children: [
-                    Expanded(
-                      child: ElevatedButton(
-                          onPressed: () async {
-                            if (!isBtnDisabled) {
-                              Order? order = await startMachine(
-                                  pinController.text ?? "", mid ?? "", context);
+                  ),
+                  const VerticalDivider(width: 64, thickness: 1, color: Colors.grey),
+                  // Right Side: Title, OTP Display and Actions (Centered)
+                  Expanded(
+                    flex: 1,
+                    child: Center(
+                      child: SingleChildScrollView(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              "Enter OTP",
+                              style: TextStyle(
+                                color: Colors.black,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 32,
+                              ),
+                            ),
+                            const SizedBox(height: 32.0),
+                            Pinput(
+                              length: 4,
+                              defaultPinTheme: defaultPinTheme,
+                              controller: pinController,
+                              keyboardType: TextInputType.none,
+                              onChanged: (value) {
+                                if (value.length != 4)
+                                  setState(() {
+                                    isBtnDisabled = true;
+                                  });
+                              },
+                              onCompleted: (value) => setState(() {
+                                isBtnDisabled = false;
+                              }),
+                            ),
+                            const SizedBox(height: 40.0),
+                            _buildActionButtons(isLandscape: false), // Reverted to larger size
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }
 
-                              if (order != null) {
-                                Navigator.pushReplacement(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (context) =>
-                                          PreparingOrderScreen(
-                                        order: order,
-                                      ),
-                                    ));
-                              }
-                            }
-                          },
-                          style: ElevatedButton.styleFrom(
-                            elevation: 0,
-                            backgroundColor:
-                                isBtnDisabled ? CPrimaryLight : CPrimary,
-                            padding: EdgeInsets.symmetric(
-                                vertical: 16.0, horizontal: 32.0),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8.0),
-                            ),
-                          ),
-                          child: Text(
-                            "Start Preparing",
-                            style:
-                                TextStyle(fontSize: 20.0, color: Colors.white),
-                          )),
-                    ),
-                  ],
-                ),
-                SizedBox(height: 20.0),
-                Row(
+          // Portrait Layout
+          return Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 32.0),
+              child: Container(
+                constraints: const BoxConstraints(maxWidth: 400),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Expanded(
-                      child: ElevatedButton(
-                          onPressed: () {
-                            // Navigate back to HomeScreen
-                            Navigator.pushReplacement(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => HomeScreen(),
-                                ));
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.transparent,
-                            elevation: 0,
-                            padding: EdgeInsets.symmetric(
-                                vertical: 16.0, horizontal: 32.0),
-                            shape: RoundedRectangleBorder(
-                              side: BorderSide(color: Colors.black45),
-                              borderRadius: BorderRadius.circular(8.0),
-                            ),
-                          ),
-                          child: Text(
-                            "Back to Home",
-                            style:
-                                TextStyle(fontSize: 20.0, color: Colors.black),
-                          )),
+                    Text(
+                      "Enter OTP",
+                      style: TextStyle(
+                        color: Colors.black,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 32,
+                      ),
                     ),
+                    const SizedBox(height: 40.0),
+                    Pinput(
+                      length: 4,
+                      defaultPinTheme: defaultPinTheme,
+                      controller: pinController,
+                      keyboardType: TextInputType.none,
+                      onChanged: (value) {
+                        if (value.length != 4)
+                          setState(() {
+                            isBtnDisabled = true;
+                          });
+                      },
+                      onCompleted: (value) => setState(() {
+                        isBtnDisabled = false;
+                      }),
+                    ),
+                    const SizedBox(height: 40.0),
+                    _keyPad(),
+                    const SizedBox(height: 32.0),
+                    _buildActionButtons(isLandscape: false),
                   ],
                 ),
-              ],
+              ),
             ),
-          ),
-        ]),
+          );
+        },
       ),
+    );
+  }
+
+  Widget _buildActionButtons({bool isLandscape = false}) {
+    return Column(
+      children: [
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton(
+              onPressed: () async {
+                if (!isBtnDisabled) {
+                  Order? order = await startMachine(
+                      pinController.text ?? "", mid ?? "", context);
+
+                  if (order != null) {
+                    Navigator.pushReplacement(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => PreparingOrderScreen(
+                            order: order,
+                          ),
+                        ));
+                  }
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                elevation: 0,
+                backgroundColor: isBtnDisabled ? CPrimaryLight : CPrimary,
+                padding: EdgeInsets.symmetric(vertical: isLandscape ? 12.0 : 16.0),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8.0),
+                ),
+              ),
+              child: Text(
+                "Start Preparing",
+                style: TextStyle(fontSize: isLandscape ? 18.0 : 20.0, color: Colors.white),
+              )),
+        ),
+        SizedBox(height: isLandscape ? 12.0 : 16.0),
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton(
+              onPressed: () {
+                Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => HomeScreen(),
+                    ));
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.transparent,
+                elevation: 0,
+                padding: EdgeInsets.symmetric(vertical: isLandscape ? 12.0 : 16.0),
+                shape: RoundedRectangleBorder(
+                  side: BorderSide(color: Colors.black45),
+                  borderRadius: BorderRadius.circular(8.0),
+                ),
+              ),
+              child: Text(
+                "Back to Home",
+                style: TextStyle(fontSize: isLandscape ? 18.0 : 20.0, color: Colors.black),
+              )),
+        ),
+      ],
     );
   }
 
   Widget _keyPad() {
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
+      mainAxisSize: MainAxisSize.min,
       children: [
         Row(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             _keypadNumButtons("1"),
             SizedBox(width: 10),
@@ -210,6 +259,7 @@ class _ManualOTPScreenState extends State<ManualOTPScreen> {
         ),
         SizedBox(height: 10),
         Row(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             _keypadNumButtons("4"),
             SizedBox(width: 10),
@@ -220,6 +270,7 @@ class _ManualOTPScreenState extends State<ManualOTPScreen> {
         ),
         SizedBox(height: 10),
         Row(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             _keypadNumButtons("7"),
             SizedBox(width: 10),
@@ -230,6 +281,7 @@ class _ManualOTPScreenState extends State<ManualOTPScreen> {
         ),
         SizedBox(height: 10),
         Row(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             _keypadClearBtn(),
             SizedBox(width: 10),

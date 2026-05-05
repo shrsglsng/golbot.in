@@ -141,107 +141,81 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
       ),
       body: Center(
-        child: Container(
-          width: 350,
-          height: 450,
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                "Machine Login",
-                style: TextStyle(fontSize: 32),
-              ),
-              SizedBox(height: 28),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _mid,
-                      style: TextStyle(
-                        color: Colors.black,
-                      ),
-                      inputFormatters: [
-                        TextInputFormatter.withFunction(
-                          (oldValue, newValue) => TextEditingValue(
-                            text: newValue.text.toUpperCase(),
-                            selection: newValue.selection,
-                          ),
-                        ),
-                      ],
-                      decoration: InputDecoration(
-                        border: OutlineInputBorder(
-                          borderSide: BorderSide(
-                            color: Colors.grey,
-                          ),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderSide: BorderSide(
-                            color: CPrimary,
-                            width: 2.0,
-                          ),
-                        ),
-                        hintText: 'Enter Machine ID',
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
+          child: Container(
+            constraints: const BoxConstraints(maxWidth: 400),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  "Machine Login",
+                  style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
+                ),
+                SizedBox(height: 28),
+                TextField(
+                  controller: _mid,
+                  style: const TextStyle(color: Colors.black),
+                  inputFormatters: [
+                    TextInputFormatter.withFunction(
+                      (oldValue, newValue) => TextEditingValue(
+                        text: newValue.text.toUpperCase(),
+                        selection: newValue.selection,
                       ),
                     ),
+                  ],
+                  decoration: InputDecoration(
+                    border: OutlineInputBorder(
+                      borderSide: const BorderSide(color: Colors.grey),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderSide: BorderSide(color: CPrimary, width: 2.0),
+                    ),
+                    hintText: 'Enter Machine ID',
+                    prefixIcon: const Icon(Icons.settings),
                   ),
-                ],
-              ),
-              SizedBox(height: 18),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      obscureText: true,
-                      enableSuggestions: false,
-                      autocorrect: false,
-                      controller: _password,
-                      style: TextStyle(
-                        color: Colors.black,
-                      ),
-                      decoration: InputDecoration(
-                        border: OutlineInputBorder(
-                          borderSide: BorderSide(
-                            color: Colors.grey,
-                          ),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderSide: BorderSide(
-                            color: CPrimary,
-                            width: 2.0,
-                          ),
-                        ),
-                        hintText: 'Enter password',
+                ),
+                SizedBox(height: 18),
+                TextField(
+                  obscureText: true,
+                  enableSuggestions: false,
+                  autocorrect: false,
+                  controller: _password,
+                  style: const TextStyle(color: Colors.black),
+                  decoration: InputDecoration(
+                    border: OutlineInputBorder(
+                      borderSide: const BorderSide(color: Colors.grey),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderSide: BorderSide(color: CPrimary, width: 2.0),
+                    ),
+                    hintText: 'Enter password',
+                    prefixIcon: const Icon(Icons.lock),
+                  ),
+                ),
+                SizedBox(height: 28),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: isLoading ? null : handleLogin,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: CPrimary,
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(vertical: 16.0),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8.0),
                       ),
                     ),
+                    child: Text(
+                      isLoading ? "Loading..." : "Login",
+                      style: const TextStyle(fontSize: 20.0, color: Colors.white),
+                    ),
                   ),
-                ],
-              ),
-              SizedBox(height: 18),
-              Row(
-                children: [
-                  Expanded(
-                    child: ElevatedButton(
-                        onPressed: isLoading ? null : handleLogin,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: CPrimary,
-                          elevation: 0,
-                          padding: EdgeInsets.symmetric(
-                              vertical: 16.0, horizontal: 32.0),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(
-                                8.0), // Make it fully rounded
-                          ),
-                        ),
-                        child: Text(
-                          isLoading ? "Loading..." : "Login",
-                          style: TextStyle(fontSize: 20.0, color: Colors.white),
-                        )),
-                  ),
-                ],
-              ),
-            ],
+                ),
+              ],
+            ),
           ),
         ),
       ),

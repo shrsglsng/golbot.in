@@ -5,16 +5,19 @@ import {
   getReportById,
   updateReportStatus,
   markReportAsSeen,
-  getUnseenCount
+  getUnseenCount,
+  getMyReports
 } from "../controllers/reportController.js";
 import auth from "../middlewares/auth.js";
 import admin from "../middlewares/admin.js";
 import { optionalAuth } from "../middlewares/optionalAuth.js";
+import { reportRateLimit } from "../utils/rateLimiter.js";
 
 const router = express.Router();
 
 // User endpoints
-router.post("/start", optionalAuth, startReport);
+router.post("/start", reportRateLimit, optionalAuth, startReport);
+router.get("/my", auth, getMyReports);
 
 // Admin endpoints
 router.get("/", admin, getAllReports);

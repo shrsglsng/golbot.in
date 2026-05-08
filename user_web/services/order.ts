@@ -384,3 +384,34 @@ export async function getOrderHistory(page: number = 1, limit: number = 20): Pro
     throw new Error(error.message || "Failed to fetch order history");
   }
 }
+
+// Get Order By ID
+export async function getOrderById(orderId: string): Promise<OrderHistoryItem | undefined> {
+  const baseUrl = process.env.NEXT_PUBLIC_SERVER_URL;
+  if (!baseUrl) throw new Error("Server URL not set");
+
+  const url = `${baseUrl}/order/${orderId}`;
+  const token = localStorage.getItem("Token");
+
+  try {
+    const res = await axios.get(url, {
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (res.status === 200 && res.data?.data?.order) {
+      return res.data.data.order;
+    }
+  } catch (error: any) {
+    console.error("getOrderById error:", error);
+
+    if (error.response?.status === 401) {
+      localStorage.removeItem("Token");
+      throw new Error("AUTHENTICATION_REQUIRED");
+    }
+  }
+
+  return undefined;
+}

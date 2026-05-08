@@ -18,7 +18,7 @@ class ScannerScreen extends StatefulWidget {
 }
 
 class _ScannerScreenState extends State<ScannerScreen> {
-  MobileScannerController cameraController = MobileScannerController();
+  MobileScannerController cameraController = MobileScannerController(facing: CameraFacing.front);
   bool isProcessing = false;
   String? mid;
 
@@ -132,117 +132,167 @@ class _ScannerScreenState extends State<ScannerScreen> {
           ),
         ),
       ),
-      body: Stack(
-        children: [
-          // Camera preview
-          MobileScanner(
-            controller: cameraController,
-            onDetect: _onDetect,
-          ),
-          
-          // Overlay with instructions
-          Column(
+      body: OrientationBuilder(
+        builder: (context, orientation) {
+          bool isLandscape = orientation == Orientation.landscape;
+
+          return Stack(
             children: [
-              Expanded(
-                flex: 1,
-                child: Container(
-                  color: Colors.black54,
-                  child: Center(
-                    child: Text(
-                      'Scan QR Code for Order OTP',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
+              // Camera preview
+              Positioned.fill(
+                child: MobileScanner(
+                  key: ValueKey(orientation), // Force re-init on rotation
+                  controller: cameraController,
+                  onDetect: _onDetect,
+                  fit: BoxFit.cover,
                 ),
               ),
-              
-              // Scanner area
-              Expanded(
-                flex: 3,
-                child: Container(
-                  decoration: BoxDecoration(
-                    border: Border.all(color: CPrimary, width: 3),
-                  ),
-                ),
-              ),
-              
-              Expanded(
-                flex: 1,
-                child: Container(
-                  color: Colors.black54,
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      if (isProcessing)
-                        Column(
-                          children: [
-                            CircularProgressIndicator(color: Colors.white),
-                            SizedBox(height: 8),
-                            Text(
-                              'Processing...',
-                              style: TextStyle(color: Colors.white),
+
+              // Responsive Overlay
+              isLandscape
+                  ? Row(
+                      children: [
+                        Expanded(
+                          flex: 1,
+                          child: Container(
+                            color: Colors.black54,
+                            child: const Center(
+                              child: Padding(
+                                padding: EdgeInsets.all(16.0),
+                                child: Text(
+                                  'Scan QR Code for Order OTP',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
                             ),
-                          ],
-                        )
-                      else
-                        Text(
-                          'Align QR code within the frame',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 16,
                           ),
                         ),
-                    ],
-                  ),
+                        // Horizontal Scanner area
+                        Container(
+                          width: MediaQuery.of(context).size.height * 0.7,
+                          height: MediaQuery.of(context).size.height * 0.7,
+                          decoration: BoxDecoration(
+                            border: Border.all(color: CPrimary, width: 3),
+                          ),
+                        ),
+                        Expanded(
+                          flex: 1,
+                          child: Container(
+                            color: Colors.black54,
+                            child: Center(
+                              child: isProcessing
+                                  ? const CircularProgressIndicator(color: Colors.white)
+                                  : const Padding(
+                                      padding: EdgeInsets.all(16.0),
+                                      child: Text(
+                                        'Align QR code within the frame',
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(color: Colors.white, fontSize: 16),
+                                      ),
+                                    ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    )
+                  : Column(
+                      children: [
+                        Expanded(
+                          flex: 1,
+                          child: Container(
+                            color: Colors.black54,
+                            child: const Center(
+                              child: Text(
+                                'Scan QR Code for Order OTP',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        // Scanner area
+                        Container(
+                          width: MediaQuery.of(context).size.width * 0.7,
+                          height: MediaQuery.of(context).size.width * 0.7,
+                          decoration: BoxDecoration(
+                            border: Border.all(color: CPrimary, width: 3),
+                          ),
+                        ),
+                        Expanded(
+                          flex: 1,
+                          child: Container(
+                            color: Colors.black54,
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                if (isProcessing)
+                                  const Column(
+                                    children: [
+                                      CircularProgressIndicator(color: Colors.white),
+                                      SizedBox(height: 8),
+                                      Text(
+                                        'Processing...',
+                                        style: TextStyle(color: Colors.white),
+                                      ),
+                                    ],
+                                  )
+                                else
+                                  const Text(
+                                    'Align QR code within the frame',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 16,
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+
+              // Bottom controls
+              Positioned(
+                bottom: isLandscape ? 40 : 80,
+                left: 0,
+                right: 0,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    FloatingActionButton(
+                      heroTag: "flash",
+                      onPressed: () => cameraController.toggleTorch(),
+                      backgroundColor: Colors.white,
+                      child: Icon(Icons.flash_on, color: CPrimary),
+                    ),
+                    FloatingActionButton.extended(
+                      heroTag: "manual",
+                      onPressed: () {
+                        Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => ManualOTPScreen(),
+                          ),
+                        );
+                      },
+                      backgroundColor: CPrimary,
+                      label: const Text('Enter Manually', style: TextStyle(color: Colors.white)),
+                      icon: const Icon(Icons.keyboard, color: Colors.white),
+                    ),
+                  ],
                 ),
               ),
             ],
-          ),
-          
-          // Bottom controls
-          Positioned(
-            bottom: 80,
-            left: 0,
-            right: 0,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                // Flash toggle
-                FloatingActionButton(
-                  heroTag: "flash",
-                  onPressed: () {
-                    cameraController.toggleTorch();
-                  },
-                  backgroundColor: Colors.white,
-                  child: Icon(Icons.flash_on, color: CPrimary),
-                ),
-                
-                // Manual entry button
-                FloatingActionButton.extended(
-                  heroTag: "manual",
-                  onPressed: () {
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => ManualOTPScreen(),
-                      ),
-                    );
-                  },
-                  backgroundColor: CPrimary,
-                  label: Text(
-                    'Enter Manually',
-                    style: TextStyle(color: Colors.white),
-                  ),
-                  icon: Icon(Icons.keyboard, color: Colors.white),
-                ),
-              ],
-            ),
-          ),
-        ],
+          );
+        },
       ),
     );
   }

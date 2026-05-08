@@ -405,6 +405,24 @@ function CheckoutPage() {
   };
 
 
+  // Save cart to localStorage whenever items change
+  useEffect(() => {
+    if (mid && typeof mid === 'string' && items.length > 0) {
+      try {
+        // Only save items with quantity > 0
+        const itemsToSave = items
+          .filter(item => item.quantity > 0)
+          .map(item => ({ id: item.id, quantity: item.quantity }))
+        localStorage.setItem(`golbot_cart_${mid}`, JSON.stringify(itemsToSave))
+      } catch (error) {
+        console.error('Error saving cart to localStorage:', error)
+      }
+    } else if (mid && typeof mid === 'string' && items.length === 0) {
+      // If items is explicitly empty (e.g. after clearCart), clear localStorage
+      localStorage.removeItem(`golbot_cart_${mid}`)
+    }
+  }, [items, mid])
+
   useEffect(() => {
     let tmpPrice = 0;
     let tmpGst = 0;
@@ -419,7 +437,13 @@ function CheckoutPage() {
     const total = tmpPrice + tmpGst;
     setAmount({ price: tmpPrice, gst: tmpGst, total });
 
-    if (total === 0) router.push(`/${mid}`);
+    if (total === 0) {
+      // Clear localStorage if total is 0 to ensure it doesn't re-populate
+      if (mid && typeof mid === 'string') {
+        localStorage.removeItem(`golbot_cart_${mid}`)
+      }
+      router.push(`/${mid}`);
+    }
   }, [items, mid, router]);
 
   // Show loading while checking auth
@@ -449,7 +473,7 @@ function CheckoutPage() {
         )}
 
         <div className="w-full flex justify-center">
-          <div className="w-full md:w-1/2 lg:w-1/4 min-h-screen pb-32">
+          <div className="w-full md:w-5/6 lg:max-w-5xl min-h-screen pb-32">
             <div className="pt-[72px]">
               {/* Active Order Banner */}
               {activeOrder && (
@@ -486,119 +510,119 @@ function CheckoutPage() {
                 </div>
               </div>
 
-              {/* Cart Items */}
-              {amount.total === 0 ? (
-                <div className="p-8 flex flex-col items-center justify-center min-h-[400px]">
-                  <div className="h-20 w-20 rounded-full bg-muted flex items-center justify-center mb-4">
-                    <ShoppingCart className="h-10 w-10 text-muted-foreground" />
-                  </div>
-                  <h2 className="text-lg font-semibold mb-2">Your cart is empty</h2>
-                  <p className="text-sm text-muted-foreground text-center mb-6">
-                    Add items from the menu to get started
-                  </p>
-                  <Button onClick={() => router.push(`/${mid}`)} size="lg">
-                    Browse Menu
-                  </Button>
+              {/* Main Content Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start px-4 pt-6">
+                {/* Left Column: Items */}
+                <div className="space-y-6">
+                  {amount.total === 0 ? (
+                    <div className="p-8 flex flex-col items-center justify-center min-h-[400px]">
+                      <div className="h-20 w-20 rounded-full bg-muted flex items-center justify-center mb-4">
+                        <ShoppingCart className="h-10 w-10 text-muted-foreground" />
+                      </div>
+                      <h2 className="text-lg font-semibold mb-2">Your cart is empty</h2>
+                      <p className="text-sm text-muted-foreground text-center mb-6">
+                        Add items from the menu to get started
+                      </p>
+                      <Button onClick={() => router.push(`/${mid}`)} size="lg">
+                        Browse Menu
+                      </Button>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex items-center gap-2 mb-2">
+                        <Package className="h-5 w-5 text-primary" />
+                        <h2 className="font-bold text-lg">Your Items</h2>
+                        <Badge variant="secondary" className="ml-auto">
+                          {items.filter(i => i.quantity > 0).length} items
+                        </Badge>
+                      </div>
+
+                      <Card className="shadow-md">
+                        <CardContent className="p-4 pt-3">
+                          {items.map((item, i) =>
+                            item.quantity > 0 && (
+                              <CartItemCard
+                                key={item.id ?? i}
+                                item={item}
+                                index={i}
+                                onQuantityChange={(action) => {
+                                  if (action === "+" && item.quantity < 10) {
+                                    dispatch(updateCart({ item: { ...item, quantity: item.quantity + 1 }, index: i }))
+                                  } else if (action === "-" && item.quantity > 1) {
+                                    dispatch(updateCart({ item: { ...item, quantity: item.quantity - 1 }, index: i }))
+                                  }
+                                }}
+                                onRemove={() => dispatch(updateCart({ item: { ...item, quantity: 0 }, index: i }))}
+                              />
+                            )
+                          )}
+                        </CardContent>
+                      </Card>
+                    </>
+                  )}
                 </div>
-              ) : (
-                <>
-                  {/* Cart Items Section */}
-                  <div className="px-4 pt-4 pb-2">
-                    <div className="flex items-center gap-2 mb-4">
-                      <Package className="h-5 w-5 text-primary" />
-                      <h2 className="font-bold text-lg">Your Items</h2>
-                      <Badge variant="secondary" className="ml-auto">
-                        {items.filter(i => i.quantity > 0).length} items
-                      </Badge>
-                    </div>
-                  </div>
 
-                  <div className="px-4 pb-4">
-                    <Card className="shadow-md">
-                      <CardContent className="p-4 pt-3">
-                        {items.map((item, i) =>
-                          item.quantity > 0 && (
-                            <CartItemCard
-                              key={item.id ?? i}
-                              item={item}
-                              index={i}
-                              onQuantityChange={(action) => {
-                                if (action === "+" && item.quantity < 10) {
-                                  dispatch(updateCart({ item: { ...item, quantity: item.quantity + 1 }, index: i }))
-                                } else if (action === "-" && item.quantity > 1) {
-                                  dispatch(updateCart({ item: { ...item, quantity: item.quantity - 1 }, index: i }))
-                                }
-                              }}
-                              onRemove={() => dispatch(updateCart({ item: { ...item, quantity: 0 }, index: i }))}
-                            />
-                          )
-                        )}
-                      </CardContent>
-                    </Card>
-                  </div>
+                {/* Right Column: Bill & Info */}
+                <div className="space-y-6 sticky top-[144px]">
+                  {amount.total > 0 && (
+                    <>
+                      <div className="flex items-center gap-2 mb-2">
+                        <Receipt className="h-5 w-5 text-primary" />
+                        <h2 className="font-bold text-lg">Bill Details</h2>
+                      </div>
 
-                  {/* Delivery Info Section */}
-                  <div className="px-4 pb-4">
-                    <Card className="shadow-md bg-gradient-to-br from-primary/5 to-orange-50/50 dark:from-primary/10 dark:to-orange-950/20 border-primary/20">
-                      <CardContent className="p-5">
-                        <div className="flex items-start gap-3">
-                          <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                            <Clock className="h-5 w-5 text-primary" />
-                          </div>
-                          <div className="flex-1">
-                            <h3 className="font-semibold mb-1 text-sm">Ready in 60 seconds</h3>
-                            <p className="text-xs text-muted-foreground leading-relaxed">
-                              Your order will be prepared fresh and ready for pickup at the vending machine
-                            </p>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </div>
-
-                  {/* Bill Details Section */}
-                  <div className="px-4 pt-2 pb-2">
-                    <div className="flex items-center gap-2 mb-4">
-                      <Receipt className="h-5 w-5 text-primary" />
-                      <h2 className="font-bold text-lg">Bill Details</h2>
-                    </div>
-                  </div>
-
-                  <div className="px-4 pb-6">
-                    <Card className="shadow-md">
-                      <CardContent className="p-5 space-y-4">
-                        <div className="space-y-3.5">
-                          <div className="flex justify-between items-center">
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm text-muted-foreground">Item Total</span>
+                      <Card className="shadow-md">
+                        <CardContent className="p-5 space-y-4">
+                          <div className="space-y-3.5">
+                            <div className="flex justify-between items-center">
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm text-muted-foreground">Item Total</span>
+                              </div>
+                              <span className="font-semibold">₹{amount.price.toFixed(0)}</span>
                             </div>
-                            <span className="font-semibold">₹{amount.price.toFixed(0)}</span>
-                          </div>
 
-                          <div className="flex justify-between items-center">
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm text-muted-foreground">Taxes & Charges</span>
+                            <div className="flex justify-between items-center">
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm text-muted-foreground">Taxes & Charges</span>
+                              </div>
+                              <span className="font-semibold">₹{amount.gst.toFixed(0)}</span>
                             </div>
-                            <span className="font-semibold">₹{amount.gst.toFixed(0)}</span>
-                          </div>
 
-                          <Separator className="my-3" />
+                            <Separator className="my-3" />
 
-                          <div className="flex justify-between items-center bg-primary/5 dark:bg-primary/10 -mx-5 -mb-5 px-5 py-4 rounded-b-lg">
-                            <span className="font-bold text-base">TO PAY</span>
-                            <span className="font-bold text-2xl text-primary">₹{amount.total.toFixed(0)}</span>
+                            <div className="flex justify-between items-center bg-primary/5 dark:bg-primary/10 -mx-5 -mb-5 px-5 py-4 rounded-b-lg">
+                              <span className="font-bold text-base">TO PAY</span>
+                              <span className="font-bold text-2xl text-primary">₹{amount.total.toFixed(0)}</span>
+                            </div>
                           </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </div>
-                </>
-              )}
+                        </CardContent>
+                      </Card>
+
+                      {/* Delivery Info Section */}
+                      <Card className="shadow-md bg-gradient-to-br from-primary/5 to-orange-50/50 dark:from-primary/10 dark:to-orange-950/20 border-primary/20">
+                        <CardContent className="p-5">
+                          <div className="flex items-start gap-3">
+                            <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                              <Clock className="h-5 w-5 text-primary" />
+                            </div>
+                            <div className="flex-1">
+                              <h3 className="font-semibold mb-1 text-sm">Ready in 60 seconds</h3>
+                              <p className="text-xs text-muted-foreground leading-relaxed">
+                                Your order will be prepared fresh and ready for pickup at the vending machine
+                              </p>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </>
+                  )}
+                </div>
+              </div>
             </div>
 
             {/* Fixed Payment Button */}
             {amount.total > 0 && (
-              <div className="fixed bottom-0 left-0 right-0 md:left-1/2 md:right-auto md:w-1/2 lg:w-1/4 md:-translate-x-1/2 bg-gradient-to-t from-background via-background to-background/80 backdrop-blur-xl border-t shadow-2xl">
+              <div className="fixed bottom-0 left-0 right-0 md:left-1/2 md:right-auto md:w-5/6 lg:max-w-5xl md:-translate-x-1/2 bg-gradient-to-t from-background via-background to-background/80 backdrop-blur-xl border-t shadow-2xl">
                 <div className="p-4 space-y-3">
                   {/* Payment Summary */}
                   <div className="flex items-center justify-between px-2">

@@ -2,7 +2,7 @@ import Link from "next/link"
 import Logo from "./logo"
 import {
   QrCode, LogOut, LogIn, Menu, Package, RefreshCw,
-  User, FileText, Shield,
+  User, FileText, Shield, AlertCircle,
   Mail, Truck, RotateCcw, ChevronRight, Info
 } from "lucide-react"
 import LoadingBar, { LoadingBarRef } from "react-top-loading-bar"
@@ -189,6 +189,23 @@ function Navbar() {
                       <div className="flex-1">
                         <p className="font-medium text-foreground">My Orders</p>
                         <p className="text-xs text-muted-foreground">Track your orders</p>
+                      </div>
+                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                    </Link>
+                  )}
+
+                  {loggedIn && (
+                    <Link
+                      href="/myReports"
+                      onClick={() => setShowDrawer(false)}
+                      className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-orange-50 transition-colors group"
+                    >
+                      <div className="p-2 rounded-full bg-orange-100 group-hover:bg-orange-200 transition-colors">
+                        <AlertCircle className="h-4 w-4 text-orange-600" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="font-medium text-foreground">My Reports</p>
+                        <p className="text-xs text-muted-foreground">Track your reported issues</p>
                       </div>
                       <ChevronRight className="h-4 w-4 text-muted-foreground" />
                     </Link>

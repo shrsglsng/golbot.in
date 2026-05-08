@@ -69,12 +69,12 @@ export function CartItemCard({ item, index, onQuantityChange, onRemove }: CartIt
               )}
             </div>
             <Button
-              variant="ghost"
+              variant="destructive"
               size="icon"
-              className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10 -mt-1"
+              className="h-8 w-8 bg-red-500 hover:bg-red-600 shadow-sm transition-colors -mt-1"
               onClick={onRemove}
             >
-              <X className="h-4 w-4" />
+              <X className="h-4 w-4 text-white" />
             </Button>
           </div>
 

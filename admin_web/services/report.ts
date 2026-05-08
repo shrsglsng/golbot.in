@@ -1,4 +1,4 @@
-import axios from "axios";
+﻿import axios from "axios";
 
 export interface Report {
   reportId: string;
@@ -18,6 +18,8 @@ export interface Report {
   };
   createdAt: string;
   updatedAt: string;
+  description?: string;
+  imgUrl?: string;
 }
 
 export interface OrderItem {

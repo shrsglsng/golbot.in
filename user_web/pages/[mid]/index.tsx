@@ -289,7 +289,7 @@ export default function Home({ allItems, machineData }: Readonly<{ allItems: Ext
 
       <div className="min-h-screen bg-background">
         <div className="w-full flex justify-center">
-          <div className="w-full md:w-1/2 lg:w-1/4 min-h-screen pb-32">
+          <div className="w-full md:w-5/6 lg:max-w-4xl min-h-screen pb-32">
             <div className="pt-[72px]">
               {/* Active Order Banner */}
               {activeOrder && (
@@ -323,7 +323,7 @@ export default function Home({ allItems, machineData }: Readonly<{ allItems: Ext
               {/* Product List */}
               <div className="px-4 py-6">
                 {Array.isArray(filteredItems) && filteredItems.length > 0 ? (
-                  <div className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {filteredItems.map((item, i) => {
                       const uniqueKey = item.id ? `item-${item.id}` : `item-index-${i}`;
                       return (
@@ -378,7 +378,7 @@ export default function Home({ allItems, machineData }: Readonly<{ allItems: Ext
 
             {/* Floating Cart Button - Swiggy/Zomato Style */}
             {total > 0 && (
-              <div className="fixed bottom-0 left-0 right-0 md:left-1/2 md:right-auto md:w-1/2 lg:w-1/4 md:-translate-x-1/2 p-4 z-40 bg-gradient-to-t from-background via-background to-transparent pt-8 pointer-events-none">
+              <div className="fixed bottom-0 left-0 right-0 md:left-1/2 md:right-auto md:w-5/6 lg:max-w-4xl md:-translate-x-1/2 p-4 z-40 bg-gradient-to-t from-background via-background to-transparent pt-8 pointer-events-none">
                 <div className="pointer-events-auto">
                   <Button
                     onClick={() => router.push(`/${mid}/checkout`)}
@@ -410,7 +410,7 @@ export default function Home({ allItems, machineData }: Readonly<{ allItems: Ext
 
             {/* Empty state when no items in cart */}
             {total === 0 && (
-              <div className="fixed bottom-0 left-0 right-0 md:left-1/2 md:right-auto md:w-1/2 lg:w-1/4 md:-translate-x-1/2 p-4 z-40 bg-gradient-to-t from-background via-background to-transparent pt-8 pointer-events-none">
+              <div className="fixed bottom-0 left-0 right-0 md:left-1/2 md:right-auto md:w-5/6 lg:max-w-4xl md:-translate-x-1/2 p-4 z-40 bg-gradient-to-t from-background via-background to-transparent pt-8 pointer-events-none">
                 <div className="bg-muted/50 rounded-xl p-4 text-center border border-dashed pointer-events-auto">
                   <p className="text-sm text-muted-foreground">Your cart is empty</p>
                   <p className="text-xs text-muted-foreground mt-1">Add items to get started</p>

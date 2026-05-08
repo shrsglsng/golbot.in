@@ -116,7 +116,7 @@ function PreparingOrder() {
             />
           )}
           <div className="w-full flex justify-center">
-            <div className="w-full md:w-1/2 lg:w-1/4 min-h-screen">
+            <div className="w-full md:w-5/6 lg:max-w-4xl min-h-screen">
               <div className="pt-[72px] px-4 py-24">
                 <Card className="shadow-lg">
                   <CardContent className="p-12">
@@ -210,7 +210,7 @@ function PreparingOrder() {
         )}
 
         <div className="w-full flex justify-center">
-          <div className="w-full md:w-1/2 lg:w-1/4 min-h-screen pb-8">
+          <div className="w-full md:w-5/6 lg:max-w-4xl min-h-screen pb-8">
             <div className="pt-[72px]">
               {/* Status Banner */}
               <div className={`bg-gradient-to-br ${config.gradient} text-white px-6 py-8 shadow-lg`}>

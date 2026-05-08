@@ -8,27 +8,7 @@ import { Validator } from "../utils/validation.js";
 import DatabaseUtil from "../utils/database.js";
 import ApiResponse from "../utils/response.js";
 
-/**
- * Generate a unique report ID
- * Format: R-YYYYMMDD-XXXX (e.g., R-20250115-0001)
- */
-async function generateReportId() {
-  const today = new Date();
-  const dateStr = today.toISOString().slice(0, 10).replace(/-/g, '');
-
-  // Find the last report created today
-  const lastReport = await ReportIssue.findOne({
-    reportId: new RegExp(`^R-${dateStr}-`)
-  }).sort({ createdAt: -1 });
-
-  let sequence = 1;
-  if (lastReport) {
-    const lastSequence = parseInt(lastReport.reportId.split('-')[2]);
-    sequence = lastSequence + 1;
-  }
-
-  return `R-${dateStr}-${sequence.toString().padStart(4, '0')}`;
-}
+import { generateReportId } from "../utils/reportUtils.js";
 
 /**
  * Generate mailto link with prefilled template
@@ -290,6 +270,8 @@ export const getAllReports = async (req, res) => {
         status: report.status,
         seen: report.seen,
         emailMetadata: report.emailMetadata,
+        description: report.description,
+        imgUrl: report.imgUrl,
         createdAt: report.createdAt,
         updatedAt: report.updatedAt
       })),
@@ -389,6 +371,8 @@ export const getReportById = async (req, res) => {
         status: report.status,
         seen: report.seen,
         emailMetadata: report.emailMetadata,
+        description: report.description,
+        imgUrl: report.imgUrl,
         createdAt: report.createdAt,
         updatedAt: report.updatedAt,
         emailAddress: `reports+${report.reportId}@${domain}`
@@ -517,6 +501,49 @@ export const markReportAsSeen = async (req, res) => {
 };
 
 // ---------------------------------
+// Get reports for the current logged-in user
+export const getMyReports = async (req, res) => {
+  try {
+    const userId = req.user?.uid;
+    if (!userId) {
+      throw new BadRequestError("Authentication required");
+    }
+
+    const { page = 1, limit = 10 } = req.query;
+    const skip = (page - 1) * limit;
+
+    const query = { uid: userId };
+
+    const [reports, total] = await Promise.all([
+      ReportIssue.find(query)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(Number(limit))
+        .populate('oid', 'orderCounter createdAt status amount')
+        .populate('machineId', 'mid location'),
+      ReportIssue.countDocuments(query)
+    ]);
+
+    return ApiResponse.success(res, {
+      reports,
+      pagination: {
+        total,
+        page: Number(page),
+        limit: Number(limit),
+        numOfPages: Math.ceil(total / limit)
+      }
+    }, "Reports retrieved successfully");
+
+  } catch (error) {
+    logger.error('Get user reports failed', {
+      error: error.message,
+      userId: req.user?.uid
+    });
+    throw error;
+  }
+};
+
+// ---------------------------------
 // Get unseen reports count (Admin endpoint)
 export const getUnseenCount = async (req, res) => {
   try {
@@ -556,5 +583,6 @@ export default {
   getReportById,
   updateReportStatus,
   markReportAsSeen,
-  getUnseenCount
+  getUnseenCount,
+  getMyReports
 };

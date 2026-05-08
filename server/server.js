@@ -7,10 +7,12 @@ import "express-async-errors";
 import morgan from "morgan";
 import mongoSanitize from "express-mongo-sanitize";
 import helmet from "helmet";
+import path from "path";
 
 // Import utilities
 import logger from "./utils/logger.js";
 import { responseMiddleware } from "./utils/response.js";
+import { initCleanupScheduler } from "./utils/cleanupUtils.js";
 
 import "./config/demoConfig.js";
 
@@ -34,11 +36,14 @@ import errorHandlerMiddleware from "./middlewares/errorHandler.js";
 
 // constants
 const BASE_URL_PATH = "/api/v1/";
-const CONNECTION_URL = process.env.EXPAPP_MONGO_URL;
+const CONNECTION_URL = process.env.EXPAPP_MONGO_URL || process.env.MONGO_URI || process.env.MONGODB_URI;
 const PORT = process.env.PORT || process.env.EXPAPP_PORT || 5000;
 const NODE_ENV = process.env.NODE_ENV || 'local';
 
 const app = express();
+
+// Serve static files first
+app.use("/api/v1/uploads", express.static(path.resolve("uploads")));
 
 // Enhanced startup logging
 logger.info('🚀 Starting GolBot Server', {
@@ -211,6 +216,9 @@ const connectDB = async (retries = 5) => {
     // Start server after successful DB connection
     // Listen on 0.0.0.0 to accept connections from all network interfaces
     const server = app.listen(PORT, '0.0.0.0', () => {
+      // Initialize background jobs
+      initCleanupScheduler();
+
       logger.info(`⚡️ Server running successfully`, {
         port: PORT,
         host: '0.0.0.0',

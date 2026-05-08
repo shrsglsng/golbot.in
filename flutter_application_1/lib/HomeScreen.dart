@@ -265,86 +265,123 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
           ),
-        Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => ScannerScreen(),
-                      ));
-                },
-                style: ElevatedButton.styleFrom(
-                  elevation: 0,
-                  backgroundColor: CPrimary,
-                  fixedSize: const Size(300, 205),
-                  padding: const EdgeInsets.symmetric(
-                      vertical: 16.0, horizontal: 32.0),
-                  shape: RoundedRectangleBorder(
-                    borderRadius:
-                        BorderRadius.circular(8.0),
-                  ),
-                ),
-                child: const Column(
-                  children: [
-                    Icon(
-                      Icons.qr_code_scanner,
-                      size: 140,
-                      color: Colors.white,
-                    ),
-                    Text(
-                      'Scan QR Code',
-                      style: TextStyle(fontSize: 20.0, color: Colors.white),
-                    ),
-                  ],
-                ),
+        OrientationBuilder(
+          builder: (context, orientation) {
+            bool isLandscape = orientation == Orientation.landscape;
+
+            return Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(vertical: 24.0, horizontal: 16.0),
+                child: isLandscape
+                    ? Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Spacer(),
+                          SizedBox(
+                            width: MediaQuery.of(context).size.width * 0.35,
+                            child: _buildScanQRButton(context),
+                          ),
+                          const SizedBox(width: 32.0),
+                          SizedBox(
+                            width: MediaQuery.of(context).size.width * 0.35,
+                            child: _buildEnterOTPButton(context),
+                          ),
+                          const Spacer(),
+                        ],
+                      )
+                    : Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          _buildScanQRButton(context),
+                          const SizedBox(height: 24.0),
+                          FractionallySizedBox(
+                            widthFactor: 0.5,
+                            child: Container(
+                              height: 1.0,
+                              color: Colors.grey,
+                            ),
+                          ),
+                          const SizedBox(height: 24.0),
+                          _buildEnterOTPButton(context),
+                        ],
+                      ),
               ),
-              const SizedBox(height: 24.0),
-              FractionallySizedBox(
-                widthFactor: 0.5,
-                child: Container(
-                  height: 1.0,
-                  color: Colors.grey,
-                ),
-              ),
-              const SizedBox(height: 24.0),
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => ManualOTPScreen(),
-                      ));
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.transparent,
-                  elevation: 0,
-                  fixedSize: const Size(300, 185),
-                  padding: const EdgeInsets.symmetric(
-                      vertical: 16.0, horizontal: 32.0),
-                  shape: RoundedRectangleBorder(
-                    side: BorderSide(color: CPrimary),
-                    borderRadius:
-                        BorderRadius.circular(8.0),
-                  ),
-                ),
-                child: Column(
-                  children: [
-                    Icon(Icons.numbers, size: 120, color: CPrimary),
-                    Text(
-                      'Enter OTP Manually',
-                      style: TextStyle(fontSize: 20.0, color: CPrimary),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
+            );
+          },
         ),
       ]),
+    );
+  }
+
+  Widget _buildScanQRButton(BuildContext context) {
+    return ElevatedButton(
+      onPressed: () {
+        Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => ScannerScreen(),
+            ));
+      },
+      style: ElevatedButton.styleFrom(
+        elevation: 0,
+        backgroundColor: CPrimary,
+        minimumSize: const Size(280, 200),
+        padding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 24.0),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8.0),
+        ),
+      ),
+      child: const Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.qr_code_scanner,
+            size: 100,
+            color: Colors.white,
+          ),
+          SizedBox(height: 8),
+          Text(
+            'Scan QR Code',
+            style: TextStyle(fontSize: 20.0, color: Colors.white),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEnterOTPButton(BuildContext context) {
+    return ElevatedButton(
+      onPressed: () {
+        Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => ManualOTPScreen(),
+            ));
+      },
+      style: ElevatedButton.styleFrom(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        minimumSize: const Size(280, 200),
+        padding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 24.0),
+        shape: RoundedRectangleBorder(
+          side: BorderSide(color: CPrimary),
+          borderRadius: BorderRadius.circular(8.0),
+        ),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.numbers, size: 100, color: CPrimary),
+          const SizedBox(height: 8),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              'Enter OTP Manually',
+              style: TextStyle(fontSize: 20.0, color: CPrimary),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

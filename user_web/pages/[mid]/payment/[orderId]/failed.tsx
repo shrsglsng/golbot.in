@@ -79,13 +79,6 @@ export default function PaymentFailedPage() {
                   </Button>
                 </div>
 
-                {/* Help Link */}
-                <p className="text-sm text-muted-foreground text-center">
-                  Need help?{" "}
-                  <Link href={`/${mid}/reportIssue`} className="text-destructive hover:underline font-medium">
-                    Report an Issue
-                  </Link>
-                </p>
               </Stack>
             </CardContent>
           </Card>

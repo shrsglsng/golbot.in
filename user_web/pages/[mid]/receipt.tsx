@@ -146,18 +146,6 @@ function ReceiptPage() {
                 Go to Home
               </Button>
 
-              {/* Report Issue Section */}
-              <div className="w-full border-t pt-6">
-                <p className="text-sm text-muted-foreground text-center mb-4">
-                  Had an issue with your order?
-                </p>
-                <ReportIssueButton
-                  orderId={order?.oid}
-                  machineId={router.query.mid as string}
-                  variant="destructive"
-                  size="lg"
-                />
-              </div>
             </Stack>
           </Stack>
         </Container>

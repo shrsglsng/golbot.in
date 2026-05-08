@@ -5,14 +5,14 @@ import logger from "./logger.js";
 
 /**
  * Automatically deletes images attached to resolved reports after a certain period
- * @param {number} minutes - Number of minutes to wait before deleting (default 1)
+ * @param {number} hours - Number of hours to wait before deleting (default 48)
  */
-export const cleanupOldReportImages = async (minutes = 1) => {
+export const cleanupOldReportImages = async (hours = 48) => {
   try {
-    const cutoffDate = new Date(Date.now() - minutes * 60 * 1000);
+    const cutoffDate = new Date(Date.now() - hours * 60 * 60 * 1000);
 
     logger.info('🧹 Starting scheduled cleanup of old report images', { 
-      minutes, 
+      hours, 
       cutoffDate: cutoffDate.toISOString() 
     });
 
@@ -76,13 +76,13 @@ export const cleanupOldReportImages = async (minutes = 1) => {
  */
 export const initCleanupScheduler = () => {
   // Run once on startup
-  setTimeout(() => cleanupOldReportImages(1), 5000); // Wait 5s for DB connection
+  setTimeout(() => cleanupOldReportImages(48), 10000); // Wait 10s for DB connection to stabilize
 
-  // Then run every 10 seconds for testing
-  const TEN_SECONDS = 10 * 1000;
+  // Then run every 12 hours
+  const TWELVE_HOURS = 12 * 60 * 60 * 1000;
   setInterval(() => {
-    cleanupOldReportImages(1);
-  }, TEN_SECONDS);
+    cleanupOldReportImages(48);
+  }, TWELVE_HOURS);
   
-  logger.info('⏰ Report image cleanup scheduler initialized (TESTING: 10s interval, 1m threshold)');
+  logger.info('⏰ Report image cleanup scheduler initialized (12h interval, 48h threshold)');
 };

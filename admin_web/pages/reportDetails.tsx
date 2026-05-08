@@ -241,6 +241,51 @@ function ReportDetailsPage() {
           <div className="grid gap-6 lg:grid-cols-3">
             {/* Main Content */}
             <div className="lg:col-span-2 space-y-6">
+              {/* User Report Details (New) */}
+              {(report.description || report.imgUrl) && (
+                <Card>
+                  <CardHeader>
+                    <div className="flex items-center gap-2">
+                      <AlertCircle className="h-5 w-5 text-primary" />
+                      <CardTitle>User Report Details</CardTitle>
+                    </div>
+                    <CardDescription>Submitted by the user via in-app form</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    {report.description && (
+                      <div className="space-y-2">
+                        <p className="text-sm font-semibold">User Description</p>
+                        <div className="bg-muted/30 p-4 rounded-lg border text-sm leading-relaxed whitespace-pre-wrap">
+                          {report.description}
+                        </div>
+                      </div>
+                    )}
+
+                    {report.imgUrl && (
+                      <div className="space-y-2">
+                        <p className="text-sm font-semibold">Uploaded Image</p>
+                        <div className="relative aspect-video rounded-lg overflow-hidden border bg-muted">
+                          <img
+                            src={report.imgUrl.startsWith('http') ? report.imgUrl : `${process.env.NEXT_PUBLIC_SERVER_URL}${report.imgUrl}`}
+                            alt="Report evidence"
+                            className="object-contain w-full h-full"
+                          />
+                        </div>
+                        <Button variant="outline" size="sm" asChild className="w-full">
+                          <a
+                            href={report.imgUrl.startsWith('http') ? report.imgUrl : `${process.env.NEXT_PUBLIC_SERVER_URL}${report.imgUrl}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            Open Original Image
+                          </a>
+                        </Button>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+
               {/* Email Information */}
               <Card>
                 <CardHeader>
@@ -496,7 +541,7 @@ function ReportDetailsPage() {
                   <Button
                     onClick={() => handleStatusUpdate("received")}
                     disabled={isUpdating || report.status === "received"}
-                    className="w-full"
+                    className="w-full bg-blue-500 hover:bg-blue-600"
                     variant={report.status === "received" ? "outline" : "default"}
                   >
                     <CheckCircle2 className="mr-2 h-4 w-4" />
@@ -505,7 +550,7 @@ function ReportDetailsPage() {
                   <Button
                     onClick={() => handleStatusUpdate("in_review")}
                     disabled={isUpdating || report.status === "in_review"}
-                    className="w-full"
+                    className="w-full bg-orange-500 hover:bg-orange-600"
                     variant={report.status === "in_review" ? "outline" : "default"}
                   >
                     <AlertCircle className="mr-2 h-4 w-4" />

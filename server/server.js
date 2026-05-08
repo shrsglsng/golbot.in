@@ -12,6 +12,7 @@ import path from "path";
 // Import utilities
 import logger from "./utils/logger.js";
 import { responseMiddleware } from "./utils/response.js";
+import { initCleanupScheduler } from "./utils/cleanupUtils.js";
 
 import "./config/demoConfig.js";
 
@@ -215,6 +216,9 @@ const connectDB = async (retries = 5) => {
     // Start server after successful DB connection
     // Listen on 0.0.0.0 to accept connections from all network interfaces
     const server = app.listen(PORT, '0.0.0.0', () => {
+      // Initialize background jobs
+      initCleanupScheduler();
+
       logger.info(`⚡️ Server running successfully`, {
         port: PORT,
         host: '0.0.0.0',

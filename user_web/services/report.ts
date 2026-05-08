@@ -60,6 +60,40 @@ export async function startReport(data: {
 }
 
 /**
+ * Get user's report history
+ */
+export async function getMyReports(page = 1, limit = 10) {
+  try {
+    const baseUrl = process.env.NEXT_PUBLIC_SERVER_URL;
+    if (!baseUrl) throw new Error("Server URL not set");
+
+    const url = `${baseUrl}/reports/my?page=${page}&limit=${limit}`;
+    const token = localStorage.getItem("Token");
+
+    if (!token) {
+      throw new Error("AUTHENTICATION_REQUIRED");
+    }
+
+    const res = await axios.get(url, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (res.status === 200 && res.data?.data) {
+      return res.data.data;
+    }
+
+    throw new Error("Failed to fetch reports");
+  } catch (error: any) {
+    if (error.response?.status === 401) {
+      throw new Error("AUTHENTICATION_REQUIRED");
+    }
+    throw error;
+  }
+}
+
+/**
  * Open the mailto link
  * This will open the user's default email app
  */

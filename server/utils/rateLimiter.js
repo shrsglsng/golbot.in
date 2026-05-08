@@ -131,4 +131,11 @@ export const orderRateLimit = createRateLimit({
   message: "Too many order attempts. Please wait before trying again."
 });
 
+export const reportRateLimit = createRateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  maxRequests: 5, // 5 reports per minute
+  keyGenerator: (req) => `report:${req.user?.uid || req.ip}`,
+  message: "Too many report submissions. Please wait a minute before reporting again."
+});
+
 export default rateLimiter;

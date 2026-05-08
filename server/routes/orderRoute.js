@@ -17,6 +17,7 @@ import {
 import auth from "../middlewares/auth.js";
 import admin from "../middlewares/admin.js";
 import { uploadImage } from "../middlewares/uploadImage.js";
+import { reportRateLimit } from "../utils/rateLimiter.js";
 
 const router = express.Router();
 
@@ -37,7 +38,7 @@ router.get("/:orderId", auth, getOrderById);
 router.post("/:orderId/cancel", auth, cancelOrder);
 
 // Issue report with image
-router.post("/report", auth, uploadImage.single("image"), createReportIssue);
+router.post("/report", auth, reportRateLimit, uploadImage.single("image"), createReportIssue);
 
 // Admin order view
 router.get("/admin/all", admin, getAllOrders);

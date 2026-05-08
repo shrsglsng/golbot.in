@@ -1,28 +1,19 @@
 import multer from "multer"
-import multerS3 from "multer-s3"
-import { S3Client } from "@aws-sdk/client-s3"
 import path from "path"
+import fs from "fs"
 
-// create s3 instance using S3Client
-// (this is how we create s3 instance in v3)
-const s3 = new S3Client({
-  credentials: {
-    accessKeyId: process.env.AWS_SECRET_ID,
-    secretAccessKey: process.env.AWS_SECRET_KEY,
-  },
-  region: process.env.AWS_REGION || "ap-south-1",
-})
+// Ensure uploads directory exists
+const uploadDir = "uploads"
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true })
+}
 
-const s3Storage = multerS3({
-  s3: s3, // s3 instance
-  bucket: process.env.AWS_BUCKET_NAME || "reported-images",
-  acl: "public-read", // storage access type
-  contentType: multerS3.AUTO_CONTENT_TYPE,
-  metadata: (req, file, cb) => {
-    cb(null, { fieldname: file.fieldname })
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, uploadDir)
   },
-  key: (req, file, cb) => {
-    const fileName = Date.now() + "_" + file.fieldname + "_" + file.originalname
+  filename: (req, file, cb) => {
+    const fileName = Date.now() + "_" + file.fieldname + "_" + file.originalname.replace(/\s+/g, '_')
     cb(null, fileName)
   },
 })
@@ -30,7 +21,7 @@ const s3Storage = multerS3({
 // function to sanitize files and send error for unsupported files
 function sanitizeFile(file, cb) {
   // Define the allowed extension
-  const fileExts = [".png", ".jpg", ".jpeg", ".gif"]
+  const fileExts = [".png", ".jpg", ".jpeg", ".gif", ".webp"]
 
   // Check allowed extensions
   const isAllowedExt = fileExts.includes(
@@ -44,13 +35,13 @@ function sanitizeFile(file, cb) {
     return cb(null, true) // no errors
   } else {
     // pass error msg to callback, which can be displaye in frontend
-    cb("Error: File type not allowed!")
+    cb(new Error("Error: File type not allowed!"))
   }
 }
 
 // our middleware
 export const uploadImage = multer({
-  storage: s3Storage,
+  storage: storage,
   fileFilter: (req, file, callback) => {
     sanitizeFile(file, callback)
   },
@@ -58,3 +49,4 @@ export const uploadImage = multer({
     fileSize: 1024 * 1024 * 5, // 5mb file size
   },
 })
+
